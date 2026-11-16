@@ -383,7 +383,8 @@ function doPost(e) {
     if (
       action === 'setRevealTime' ||
       action === 'revealNow' ||
-      action === 'setGender'
+      action === 'setGender' ||
+      action === 'resetGenderLock'
     ) {
       if (!verifyParentsSlug(body.slug)) {
         return jsonResponse({ error: 'Not found' });
@@ -400,6 +401,13 @@ function doPost(e) {
           settingsSheet.getRange(2, 1).setValue(nextTime);
           invalidateStateCache();
           return jsonResponse({ ok: true, revealTime: nextTime });
+        }
+
+        if (action === 'resetGenderLock') {
+          settingsSheet.getRange(2, 2).setValue('');
+          settingsSheet.getRange(2, 3).setValue(false);
+          invalidateStateCache();
+          return jsonResponse({ ok: true, locked: false });
         }
 
         if (action === 'setGender') {

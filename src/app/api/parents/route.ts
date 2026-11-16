@@ -172,16 +172,24 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Dev-only reset in mock mode so developers/testers can re-test the gender locking flow
+    // Allow parents/doctor to unlock and re-select if they made a mistake
     if (
-      action === 'devResetLock' &&
-      process.env.NEXT_PUBLIC_MOCK === 'true'
+      action === 'resetGenderLock' ||
+      (action === 'devResetLock' && process.env.NEXT_PUBLIC_MOCK === 'true')
     ) {
+      await callAppsScriptProxy('POST', 'resetGenderLock', { slug });
       store.settings.gender = null;
       store.settings.locked = false;
+
+      const remote = await callAppsScriptProxy<Record<string, unknown>>(
+        'GET',
+        'getParentsData',
+        { slug }
+      );
+
       return NextResponse.json({
         ok: true,
-        data: buildParentsResponsePayload(),
+        data: remote && remote.revealTime ? remote : buildParentsResponsePayload(),
       });
     }
 

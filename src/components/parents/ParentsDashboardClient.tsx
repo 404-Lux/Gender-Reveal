@@ -375,20 +375,24 @@ export function ParentsDashboardClient({
     }
   };
 
-  const handleDevResetGenderLock = async () => {
+  const handleResetGenderLock = async () => {
+    setLockingGender(true);
+    setLockError(null);
+    triggerHaptic(16);
     try {
       const res = await fetch('/api/parents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slug,
-          action: 'devResetLock',
+          action: 'resetGenderLock',
         }),
       });
       if (!res.ok) throw new Error('Static host fallback');
       const json = await res.json();
       if (json.ok && json.data) {
         setData(json.data);
+        soundManager.play('tick', 0.95);
       }
     } catch {
       const store = getServerStore();
@@ -396,6 +400,8 @@ export function ParentsDashboardClient({
       store.settings.locked = false;
       saveClientStore();
       setData(buildParentsStatePayload() as ParentsDashboardData);
+    } finally {
+      setLockingGender(false);
     }
   };
 
@@ -881,15 +887,14 @@ export function ParentsDashboardClient({
                     </p>
                   </div>
 
-                  {isMockMode && (
-                    <button
-                      type="button"
-                      onClick={handleDevResetGenderLock}
-                      className="mt-2 rounded-full border border-dashed border-[var(--border-hairline)] px-3.5 py-1.5 text-[11px] text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
-                    >
-                      [Dev Mode: Reset Lock to Test Again]
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    disabled={lockingGender}
+                    onClick={handleResetGenderLock}
+                    className="mt-2 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-4 py-1.5 text-[11px] font-medium text-[var(--text-primary)] transition hover:border-[var(--accent-primary)] disabled:opacity-50"
+                  >
+                    {lockingGender ? 'Unlocking...' : 'Change Gender Selection'}
+                  </button>
                 </div>
               ) : (
                 /* UNLOCKED STATE: Two Illustrated Options -> Confirm Step ("This will be final") */
