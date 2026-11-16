@@ -319,7 +319,16 @@ export function GenderRevealExperience({
 
       setServerState(data);
       try {
-        localStorage.setItem('pl_cached_public_state', JSON.stringify(data));
+        // Never persist gender or correctGuessers into localStorage before the hero balloon pop completes
+        const safeCached: PolledPublicState = {
+          ...data,
+          gender: undefined,
+          correctGuessers: undefined,
+        };
+        localStorage.setItem(
+          'pl_cached_public_state',
+          JSON.stringify(safeCached)
+        );
       } catch {
         // Ignore
       }
@@ -340,27 +349,35 @@ export function GenderRevealExperience({
         }
       }
     } catch {
-      // Static host fallback (e.g. GitHub Pages): use client-side localStorage store seamlessly
-      const localData = buildPublicStatePayload() as unknown as PolledPublicState;
-      setServerState(localData);
-      setIsReconnecting(false);
+      failCountRef.current += 1;
+      setIsReconnecting(true);
     }
   }, [stage]);
 
   useEffect(() => {
-    pollServerState();
+    // At T-0 / reveal stage, add 0–1.5s random client-side jitter so guests don't stampede at the exact same ms
+    const shouldJitter =
+      stage === 'reveal' || countdown.isExpired || failCountRef.current > 0;
+    const jitterMs = shouldJitter ? Math.round(Math.random() * 1500) : 0;
+
+    const initialTimer = setTimeout(pollServerState, jitterMs);
+
     const baseDelay =
       stage === 'reveal'
-        ? 1500
-        : countdown.isFinalMinute
         ? 2000
-        : 4000;
-    const backoffMultiplier = Math.min(4, Math.pow(1.5, failCountRef.current));
-    const intervalMs = Math.round(baseDelay * backoffMultiplier);
+        : countdown.isFinalMinute
+        ? 3000
+        : 5000;
+    const backoffMultiplier = Math.min(4, Math.pow(1.6, failCountRef.current));
+    const pollJitter = Math.round(Math.random() * 600);
+    const intervalMs = Math.round(baseDelay * backoffMultiplier) + pollJitter;
 
     const timer = setInterval(pollServerState, intervalMs);
-    return () => clearInterval(timer);
-  }, [pollServerState, countdown.isFinalMinute, stage]);
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(timer);
+    };
+  }, [pollServerState, countdown.isFinalMinute, countdown.isExpired, stage]);
 
   useEffect(() => {
     if (

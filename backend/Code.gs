@@ -220,8 +220,56 @@ function invalidateStateCache() {
   CacheService.getScriptCache().remove(STATE_CACHE_KEY);
 }
 
+function buildParentsDataPayload(ss) {
+  var settings = readSettingsRow(ss);
+  var guesses = readRowsAsObjects(ss, 'guesses');
+  var wishes = readRowsAsObjects(ss, 'wishes').reverse();
+  var names = readRowsAsObjects(ss, 'names').reverse();
+
+  var now = new Date();
+  var revealDate = new Date(settings.reveal_time);
+  var isRevealed =
+    now.getTime() >= revealDate.getTime() &&
+    settings.locked &&
+    Boolean(settings.gender);
+
+  var boyCount = guesses.filter(function (g) {
+    return g.guess === 'boy';
+  }).length;
+  var girlCount = guesses.filter(function (g) {
+    return g.guess === 'girl';
+  }).length;
+
+  return {
+    serverTime: getManilaIsoNow(now),
+    revealTime: settings.reveal_time,
+    locked: settings.locked,
+    revealed: isRevealed,
+    // Never leak the locked gender before reveal_time
+    gender: isRevealed ? settings.gender : null,
+    tally: {
+      boy: boyCount,
+      girl: girlCount,
+      total: boyCount + girlCount,
+    },
+    guesses: guesses,
+    wishes: wishes,
+    names: names,
+    advice: [],
+    correctGuessers: isRevealed
+      ? guesses
+          .filter(function (g) {
+            return g.guess === settings.gender;
+          })
+          .map(function (g) {
+            return g.name;
+          })
+      : [],
+  };
+}
+
 /**
- * HTTP GET Handler (doGet)
+ * HTTP GET Handler (doGet) — kept minimal; all secret-authenticated calls use POST
  */
 function doGet(e) {
   try {
@@ -241,52 +289,7 @@ function doGet(e) {
       if (!verifyParentsSlug(params.slug)) {
         return jsonResponse({ error: 'Not found' });
       }
-      var settings = readSettingsRow(ss);
-      var guesses = readRowsAsObjects(ss, 'guesses');
-      var wishes = readRowsAsObjects(ss, 'wishes').reverse();
-      var names = readRowsAsObjects(ss, 'names').reverse();
-      var advice = readRowsAsObjects(ss, 'advice').reverse();
-
-      var now = new Date();
-      var revealDate = new Date(settings.reveal_time);
-      var isRevealed =
-        now.getTime() >= revealDate.getTime() &&
-        settings.locked &&
-        Boolean(settings.gender);
-
-      var boyCount = guesses.filter(function (g) {
-        return g.guess === 'boy';
-      }).length;
-      var girlCount = guesses.filter(function (g) {
-        return g.guess === 'girl';
-      }).length;
-
-      return jsonResponse({
-        serverTime: getManilaIsoNow(now),
-        revealTime: settings.reveal_time,
-        locked: settings.locked,
-        revealed: isRevealed,
-        // Never leak the locked gender before reveal_time
-        gender: isRevealed ? settings.gender : null,
-        tally: {
-          boy: boyCount,
-          girl: girlCount,
-          total: boyCount + girlCount,
-        },
-        guesses: guesses,
-        wishes: wishes,
-        names: names,
-        advice: advice,
-        correctGuessers: isRevealed
-          ? guesses
-              .filter(function (g) {
-                return g.guess === settings.gender;
-              })
-              .map(function (g) {
-                return g.name;
-              })
-          : [],
-      });
+      return jsonResponse(buildParentsDataPayload(ss));
     }
 
     return jsonResponse({ error: 'Unknown GET action' });
@@ -313,6 +316,18 @@ function doPost(e) {
     var ss = ensureSheetsStructure();
     var action = body.action || '';
     var nowIso = getManilaIsoNow(new Date());
+
+    // Read Actions (via POST so secret token is never in URL query strings)
+    if (action === 'getState') {
+      return jsonResponse(buildPublicState(ss));
+    }
+
+    if (action === 'getParentsData') {
+      if (!verifyParentsSlug(body.slug)) {
+        return jsonResponse({ error: 'Not found' });
+      }
+      return jsonResponse(buildParentsDataPayload(ss));
+    }
 
     // Guest Actions
     if (action === 'submitGuess') {
