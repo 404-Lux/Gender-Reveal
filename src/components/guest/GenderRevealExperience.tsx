@@ -195,6 +195,7 @@ export function GenderRevealExperience({
 
   const failCountRef = useRef<number>(0);
   const hasAutoEnteredRevealRef = useRef<boolean>(false);
+  const pendingPostRevealStageRef = useRef<GuestFlowStage | null>(null);
 
   // Automatically preload and start background lullaby music on mount
   useEffect(() => {
@@ -217,22 +218,51 @@ export function GenderRevealExperience({
         'result',
         'photobooth',
       ];
-      if (viewParam && validStages.includes(viewParam)) {
-        setStage(viewParam);
-      }
 
       const savedName = localStorage.getItem('pl_guest_name');
       const savedSide = localStorage.getItem('pl_guest_side') as FamilySide | null;
       const savedRel = localStorage.getItem('pl_guest_relationship');
+      const savedGuess = localStorage.getItem('pl_guest_guess') as RevealGender | null;
+      const savedStage = localStorage.getItem('pl_guest_stage') as GuestFlowStage | null;
+
       if (savedName) setGuestName(savedName);
       if (savedSide === 'mother' || savedSide === 'father' || savedSide === 'both') {
         setGuestSide(savedSide);
       }
       if (savedRel) setGuestRelationship(savedRel);
+      if (savedGuess === 'boy' || savedGuess === 'girl') {
+        setGuestGuess(savedGuess);
+      }
+
+      if (viewParam && validStages.includes(viewParam)) {
+        setStage(viewParam);
+      } else if (savedStage && validStages.includes(savedStage)) {
+        if (
+          savedStage === 'wishes' ||
+          savedStage === 'waiting' ||
+          savedStage === 'guess'
+        ) {
+          setStage(savedStage);
+        } else if (
+          savedStage === 'reveal' ||
+          savedStage === 'result' ||
+          savedStage === 'photobooth'
+        ) {
+          if (isMockMode) {
+            setStage(savedStage);
+          } else {
+            pendingPostRevealStageRef.current = savedStage;
+            setStage('waiting');
+          }
+        }
+      } else if (savedName && savedGuess) {
+        // Guest already voted earlier — resume directly in Waiting Room
+        setStage('waiting');
+      }
     } catch {
       // Ignore
     }
-  }, []);
+  }, [isMockMode]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -265,14 +295,18 @@ export function GenderRevealExperience({
       setIsReconnecting(false);
       failCountRef.current = 0;
 
-      if (
-        data.revealed &&
-        data.gender &&
-        !hasAutoEnteredRevealRef.current &&
-        stage === 'welcome'
-      ) {
-        hasAutoEnteredRevealRef.current = true;
-        setIsLateJoinReplay(true);
+      if (data.revealed && data.gender) {
+        if (pendingPostRevealStageRef.current) {
+          const target = pendingPostRevealStageRef.current;
+          pendingPostRevealStageRef.current = null;
+          if (target === 'result' || target === 'photobooth') {
+            applyThemeVariables(data.gender);
+          }
+          setStage(target);
+        } else if (!hasAutoEnteredRevealRef.current && stage === 'welcome') {
+          hasAutoEnteredRevealRef.current = true;
+          setIsLateJoinReplay(true);
+        }
       }
     } catch {
       // Static host fallback (e.g. GitHub Pages): use client-side localStorage store seamlessly
@@ -300,6 +334,11 @@ export function GenderRevealExperience({
     ) {
       hasAutoEnteredRevealRef.current = true;
       setStage('reveal');
+      try {
+        localStorage.setItem('pl_guest_stage', 'reveal');
+      } catch {
+        // Ignore
+      }
     }
   }, [stage, countdown.isFinalTenSeconds, countdown.isExpired]);
 
@@ -327,6 +366,11 @@ export function GenderRevealExperience({
       applyThemeVariables(activeGender);
     }
     setStage(nextStage);
+    try {
+      localStorage.setItem('pl_guest_stage', nextStage);
+    } catch {
+      // Ignore
+    }
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }

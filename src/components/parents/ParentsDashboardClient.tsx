@@ -16,6 +16,8 @@ import {
   ArrowLeft,
   Sparkle,
   CalendarBlank,
+  SpeakerHigh,
+  SpeakerSlash,
 } from '@phosphor-icons/react';
 import { EASINGS, PALETTE, RevealGender } from '@/lib/tokens';
 import {
@@ -112,6 +114,25 @@ export function ParentsDashboardClient({
 
   const [savingTime, setSavingTime] = useState(false);
   const [timeFeedback, setTimeFeedback] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(soundManager.getMuted());
+
+  useEffect(() => {
+    soundManager.preloadAll().then(() => {
+      soundManager.startLullaby();
+    });
+    setIsMuted(soundManager.getMuted());
+    return soundManager.subscribe((m) => setIsMuted(m));
+  }, []);
+
+  const handleToggleMusic = () => {
+    triggerHaptic(14);
+    const nextMuted = soundManager.toggleMute();
+    if (!nextMuted) {
+      soundManager.startLullaby();
+    } else {
+      soundManager.stopLullaby();
+    }
+  };
 
   // Gender Picker & Confirmation Modal State
   const [pendingGender, setPendingGender] = useState<RevealGender | null>(null);
@@ -431,6 +452,25 @@ export function ParentsDashboardClient({
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleToggleMusic}
+            aria-label={isMuted ? 'Unmute celebration music' : 'Mute celebration music'}
+            className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-4 py-2 text-xs font-medium text-[var(--text-primary)] transition hover:border-[var(--accent-primary)]"
+          >
+            {isMuted ? (
+              <>
+                <SpeakerSlash size={15} weight="light" />
+                <span>Unmute Music</span>
+              </>
+            ) : (
+              <>
+                <SpeakerHigh size={15} weight="light" className="text-[var(--accent-primary)]" />
+                <span>Music On</span>
+              </>
+            )}
+          </button>
+
           <Link
             href="/"
             className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-4 py-2 text-xs font-medium text-[var(--text-primary)] transition hover:border-[var(--accent-primary)]"
