@@ -460,6 +460,7 @@ export function GenderRevealExperience({
   useEffect(() => {
     if (
       stage === 'waiting' &&
+      (serverState.locked || isMockMode) &&
       (countdown.isFinalTenSeconds || countdown.isExpired) &&
       !hasAutoEnteredRevealRef.current
     ) {
@@ -471,7 +472,13 @@ export function GenderRevealExperience({
         // Ignore
       }
     }
-  }, [stage, countdown.isFinalTenSeconds, countdown.isExpired]);
+  }, [
+    stage,
+    serverState.locked,
+    isMockMode,
+    countdown.isFinalTenSeconds,
+    countdown.isExpired,
+  ]);
 
   const handleStageChange = (nextStage: GuestFlowStage) => {
     const isPostRevealStage =
