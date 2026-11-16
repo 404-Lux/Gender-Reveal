@@ -13,7 +13,7 @@ import { RevealGender } from '@/lib/tokens';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, _hp } = body || {};
+    const { action, _hp, idempotencyKey, deviceId } = body || {};
 
     if (_hp && String(_hp).trim().length > 0) {
       return NextResponse.json({ ok: true });
@@ -21,19 +21,27 @@ export async function POST(req: NextRequest) {
 
     const clientIp =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'guest-local';
-    if (!checkRateLimit(`${clientIp}:${action}`, 600)) {
+    if (!checkRateLimit(`${clientIp}:${action}`, 500)) {
       return NextResponse.json(
-        { error: 'Please wait a moment before submitting again.' },
+        {
+          error: 'Please wait a moment before submitting again.',
+          retryable: true,
+        },
         { status: 429 }
       );
     }
 
     const timestamp = getNowPHTIso();
     const store = getServerStore();
+    const hasAppsScript = Boolean(
+      process.env.APPS_SCRIPT_URL && process.env.APPS_SCRIPT_URL.trim() !== ''
+    );
 
     if (action === 'submitGuess') {
       const name = sanitizeText(body.name, 60);
       const relationship = sanitizeText(body.relationship, 50);
+      const cleanDeviceId = sanitizeText(deviceId, 64);
+      const cleanIdempKey = sanitizeText(idempotencyKey, 64);
       const rawSide = String(body.side || 'both').toLowerCase();
       const side: FamilySide =
         rawSide === 'mother'
@@ -47,8 +55,51 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Name is required.' }, { status: 400 });
       }
 
+      if (hasAppsScript) {
+        const proxyRes = await callAppsScriptProxy<{
+          ok?: boolean;
+          error?: string;
+          retryable?: boolean;
+        }>('POST', 'submitGuess', {
+          name,
+          side,
+          relationship,
+          guess,
+          deviceId: cleanDeviceId,
+          idempotencyKey: cleanIdempKey,
+          timestamp,
+        });
+
+        if (!proxyRes || proxyRes.error === 'BUSY_RETRY' || proxyRes.retryable) {
+          return NextResponse.json(
+            {
+              error: 'Server is busy right now. Your guess is saved — please retry.',
+              retryable: true,
+            },
+            { status: 503 }
+          );
+        }
+
+        if (proxyRes.error) {
+          return NextResponse.json({ error: proxyRes.error }, { status: 400 });
+        }
+
+        const remoteState = await callAppsScriptProxy<Record<string, unknown>>(
+          'POST',
+          'getState'
+        );
+
+        return NextResponse.json({
+          ok: true,
+          state: remoteState || buildPublicStatePayload(),
+        });
+      }
+
+      // Local / Mock fallback with deviceId + normalized name deduplication
       const existingIdx = store.guesses.findIndex(
-        (g) => g.name.toLowerCase() === name.toLowerCase()
+        (g) =>
+          (cleanDeviceId && g.deviceId && g.deviceId === cleanDeviceId) ||
+          g.name.toLowerCase() === name.toLowerCase()
       );
       if (existingIdx >= 0) {
         store.guesses[existingIdx] = {
@@ -56,6 +107,7 @@ export async function POST(req: NextRequest) {
           relationship,
           side,
           guess,
+          deviceId: cleanDeviceId || undefined,
           timestamp,
         };
       } else {
@@ -64,26 +116,14 @@ export async function POST(req: NextRequest) {
           relationship,
           side,
           guess,
+          deviceId: cleanDeviceId || undefined,
           timestamp,
         });
       }
 
-      await callAppsScriptProxy('POST', 'submitGuess', {
-        name,
-        side,
-        relationship,
-        guess,
-        timestamp,
-      });
-
-      const remoteState = await callAppsScriptProxy<Record<string, unknown>>(
-        'GET',
-        'getState'
-      );
-
       return NextResponse.json({
         ok: true,
-        state: remoteState || buildPublicStatePayload(),
+        state: buildPublicStatePayload(),
       });
     }
 
@@ -91,6 +131,7 @@ export async function POST(req: NextRequest) {
       const name = sanitizeText(body.name, 80) || 'A Loving Guest';
       const wishForBaby = sanitizeText(body.wish_for_baby, 600);
       const noteForParents = sanitizeText(body.note_for_parents, 600);
+      const cleanIdempKey = sanitizeText(idempotencyKey, 64);
       const guess: RevealGender | undefined =
         body.guess === 'boy' || body.guess === 'girl' ? body.guess : undefined;
 
@@ -101,6 +142,45 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      if (hasAppsScript) {
+        const proxyRes = await callAppsScriptProxy<{
+          ok?: boolean;
+          error?: string;
+          retryable?: boolean;
+        }>('POST', 'submitWish', {
+          name,
+          guess,
+          wish_for_baby: wishForBaby,
+          note_for_parents: noteForParents,
+          idempotencyKey: cleanIdempKey,
+          timestamp,
+        });
+
+        if (!proxyRes || proxyRes.error === 'BUSY_RETRY' || proxyRes.retryable) {
+          return NextResponse.json(
+            {
+              error: 'Connection is busy. Your wish is safely saved — tap Retry.',
+              retryable: true,
+            },
+            { status: 503 }
+          );
+        }
+
+        if (proxyRes.error) {
+          return NextResponse.json({ error: proxyRes.error }, { status: 400 });
+        }
+
+        const remoteState = await callAppsScriptProxy<Record<string, unknown>>(
+          'POST',
+          'getState'
+        );
+
+        return NextResponse.json({
+          ok: true,
+          state: remoteState || buildPublicStatePayload(),
+        });
+      }
+
       store.wishes.unshift({
         name,
         guess,
@@ -109,28 +189,16 @@ export async function POST(req: NextRequest) {
         timestamp,
       });
 
-      await callAppsScriptProxy('POST', 'submitWish', {
-        name,
-        guess,
-        wish_for_baby: wishForBaby,
-        note_for_parents: noteForParents,
-        timestamp,
-      });
-
-      const remoteState = await callAppsScriptProxy<Record<string, unknown>>(
-        'GET',
-        'getState'
-      );
-
       return NextResponse.json({
         ok: true,
-        state: remoteState || buildPublicStatePayload(),
+        state: buildPublicStatePayload(),
       });
     }
 
     if (action === 'submitName') {
       const guest = sanitizeText(body.guest, 60) || 'Family Friend';
       const suggestedName = sanitizeText(body.suggested_name, 80);
+      const cleanIdempKey = sanitizeText(idempotencyKey, 64);
 
       if (!suggestedName) {
         return NextResponse.json(
@@ -139,26 +207,52 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      if (hasAppsScript) {
+        const proxyRes = await callAppsScriptProxy<{
+          ok?: boolean;
+          error?: string;
+          retryable?: boolean;
+        }>('POST', 'submitName', {
+          guest,
+          suggested_name: suggestedName,
+          idempotencyKey: cleanIdempKey,
+          timestamp,
+        });
+
+        if (!proxyRes || proxyRes.error === 'BUSY_RETRY' || proxyRes.retryable) {
+          return NextResponse.json(
+            {
+              error: 'Server is busy right now. Tap Suggest Name to retry.',
+              retryable: true,
+            },
+            { status: 503 }
+          );
+        }
+
+        if (proxyRes.error) {
+          return NextResponse.json({ error: proxyRes.error }, { status: 400 });
+        }
+
+        const remoteState = await callAppsScriptProxy<Record<string, unknown>>(
+          'POST',
+          'getState'
+        );
+
+        return NextResponse.json({
+          ok: true,
+          state: remoteState || buildPublicStatePayload(),
+        });
+      }
+
       store.names.unshift({
         guest,
         suggested_name: suggestedName,
         timestamp,
       });
 
-      await callAppsScriptProxy('POST', 'submitName', {
-        guest,
-        suggested_name: suggestedName,
-        timestamp,
-      });
-
-      const remoteState = await callAppsScriptProxy<Record<string, unknown>>(
-        'GET',
-        'getState'
-      );
-
       return NextResponse.json({
         ok: true,
-        state: remoteState || buildPublicStatePayload(),
+        state: buildPublicStatePayload(),
       });
     }
 

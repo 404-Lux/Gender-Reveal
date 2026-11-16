@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, EnvelopeSimple } from '@phosphor-icons/react';
 import { EASINGS, RevealGender } from '@/lib/tokens';
 import { soundManager, triggerHaptic } from '@/lib/sound';
+import { loadWishDraft, saveWishDraft } from '@/lib/clientQueue';
 import { WaxSealSvg } from '@/components/shared/PaperIllustrations';
 import { SplitText, TactileButton } from '@/components/shared/MotionPrimitives';
 
@@ -44,17 +45,31 @@ export function WishesStage({
   const [foldPhase, setFoldPhase] = useState<
     'writing' | 'sliding' | 'folding' | 'sealed'
   >('writing');
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const timersRef = useRef<NodeJS.Timeout[]>([]);
 
   useEffect(() => {
+    const draft = loadWishDraft();
+    if (draft.wishForBaby) setWishForBaby(draft.wishForBaby);
+    if (draft.noteForParents) {
+      setNoteForParents(draft.noteForParents);
+      setShowParentNoteField(true);
+    }
     return () => {
       timersRef.current.forEach(clearTimeout);
     };
   }, []);
 
+  useEffect(() => {
+    if (foldPhase === 'writing') {
+      saveWishDraft(wishForBaby, noteForParents);
+    }
+  }, [wishForBaby, noteForParents, foldPhase]);
+
   const handleSealAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (wishForBaby.trim().length < 3) {
       setError(
         'Please write a short wish or tap one of the quick wishes above.'
@@ -63,19 +78,32 @@ export function WishesStage({
     }
 
     setError(null);
-    // Step 1: Slide letter into pocket (0s -> 1.15s)
-    setFoldPhase('sliding');
-    triggerHaptic(18);
-    soundManager.play('seal', 0.9);
+    setSubmitting(true);
 
     try {
+      // Only show "sealed" animation AFTER real server acknowledgment
       await onSubmitWish({
         wishForBaby: wishForBaby.trim(),
         noteForParents: noteForParents.trim(),
       });
-    } catch {
-      // Continue animation gracefully
+    } catch (err) {
+      setSubmitting(false);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Could not reach the server. Your wish is safely saved here — tap to retry.'
+      );
+      return;
     }
+
+    // Clear draft once acknowledged by server
+    saveWishDraft('', '');
+    setSubmitting(false);
+
+    // Step 1: Slide letter into pocket (0s -> 1.15s)
+    setFoldPhase('sliding');
+    triggerHaptic(18);
+    soundManager.play('seal', 0.9);
 
     // Step 2: Fold top envelope flap down (1.15s -> 2.25s)
     const t1 = setTimeout(() => {
@@ -234,10 +262,17 @@ export function WishesStage({
               <TactileButton
                 type="submit"
                 variant="primary"
+                disabled={submitting}
                 className="w-full sm:w-auto"
               >
                 <EnvelopeSimple size={17} weight="light" />
-                <span>Seal My Keepsake Letter</span>
+                <span>
+                  {submitting
+                    ? 'Sealing & Saving...'
+                    : error
+                    ? 'Retry Sending Wish'
+                    : 'Seal My Keepsake Letter'}
+                </span>
               </TactileButton>
             </div>
           </motion.form>

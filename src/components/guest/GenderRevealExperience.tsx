@@ -29,6 +29,10 @@ import { soundManager } from '@/lib/sound';
 import { CurtainStageTransition } from '@/components/shared/MotionPrimitives';
 import { CreatorBrandSignature } from '@/components/shared/CreatorBrandSignature';
 import { InAppBrowserGuard } from '@/components/shared/InAppBrowserGuard';
+import {
+  flushPendingWrites,
+  sendWriteWithQueue,
+} from '@/lib/clientQueue';
 import { WelcomeStage } from './WelcomeStage';
 import { GuessStage } from './GuessStage';
 import { WishesStage } from './WishesStage';
@@ -344,23 +348,32 @@ export function GenderRevealExperience({
     }
   }, [serverOffsetMs]);
 
+  // Flush any queued offline/retry writes on mount, reconnect, and visibilitychange
   useEffect(() => {
-    syncServerClock();
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        syncServerClock();
+    const runFlush = async () => {
+      const { latestState } = await flushPendingWrites();
+      if (latestState) {
+        setServerState(latestState as PolledPublicState);
       }
     };
-    const handleOnline = () => {
+    runFlush();
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        syncServerClock();
+        runFlush();
+      }
+    };
+    const onOnline = () => {
       syncServerClock();
+      runFlush();
     };
 
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onOnline);
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onOnline);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -523,32 +536,22 @@ export function GenderRevealExperience({
       // Ignore
     }
 
-    try {
-      const res = await fetch('/api/guest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'submitGuess',
-          name: payload.name,
-          side: payload.side,
-          relationship: payload.relationship,
-          guess: payload.guess,
-        }),
-      });
-      if (!res.ok) throw new Error('Static host fallback');
-      const json = await res.json();
-      if (json.state) setServerState(json.state);
-    } catch {
-      const store = getServerStore();
-      store.guesses.push({
-        name: payload.name,
-        side: payload.side,
-        relationship: payload.relationship,
-        guess: payload.guess,
-        timestamp: getNowPHTIso(),
-      });
-      saveClientStore();
-      setServerState(buildPublicStatePayload() as unknown as PolledPublicState);
+    const result = await sendWriteWithQueue('submitGuess', {
+      name: payload.name,
+      side: payload.side,
+      relationship: payload.relationship,
+      guess: payload.guess,
+    });
+
+    if (!result.ok) {
+      throw new Error(
+        result.error ||
+          'Connection interrupted. Your guess is saved — please tap Continue to retry.'
+      );
+    }
+
+    if (result.state) {
+      setServerState(result.state as PolledPublicState);
     }
 
     // Always let guests (including late guests) leave their wishes & parent notes after voting
@@ -562,32 +565,22 @@ export function GenderRevealExperience({
     const displaySender = guestRelationship
       ? `${guestName} · ${guestRelationship}`
       : guestName;
-    try {
-      const res = await fetch('/api/guest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'submitWish',
-          name: displaySender,
-          guess: guestGuess,
-          wish_for_baby: payload.wishForBaby,
-          note_for_parents: payload.noteForParents,
-        }),
-      });
-      if (!res.ok) throw new Error('Static host fallback');
-      const json = await res.json();
-      if (json.state) setServerState(json.state);
-    } catch {
-      const store = getServerStore();
-      store.wishes.push({
-        name: displaySender,
-        guess: guestGuess || undefined,
-        wish_for_baby: payload.wishForBaby,
-        note_for_parents: payload.noteForParents,
-        timestamp: getNowPHTIso(),
-      });
-      saveClientStore();
-      setServerState(buildPublicStatePayload() as unknown as PolledPublicState);
+    const result = await sendWriteWithQueue('submitWish', {
+      name: displaySender,
+      guess: guestGuess,
+      wish_for_baby: payload.wishForBaby,
+      note_for_parents: payload.noteForParents,
+    });
+
+    if (!result.ok) {
+      throw new Error(
+        result.error ||
+          'Connection interrupted. Your wish is safely saved here — tap Retry.'
+      );
+    }
+
+    if (result.state) {
+      setServerState(result.state as PolledPublicState);
     }
   };
 
@@ -605,24 +598,25 @@ export function GenderRevealExperience({
       names: [optimisticEntry, ...prev.names],
     }));
 
-    try {
-      const res = await fetch('/api/guest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'submitName',
-          guest: cleanGuest,
-          suggested_name: suggestedName,
-        }),
-      });
-      if (!res.ok) throw new Error('Static host fallback');
-      const json = await res.json();
-      if (json.state) setServerState(json.state);
-    } catch {
-      const store = getServerStore();
-      store.names.push(optimisticEntry);
-      saveClientStore();
-      setServerState(buildPublicStatePayload() as unknown as PolledPublicState);
+    const result = await sendWriteWithQueue('submitName', {
+      guest: cleanGuest,
+      suggested_name: suggestedName,
+    });
+
+    if (!result.ok) {
+      // Revert optimistic entry and surface calm retry error
+      setServerState((prev) => ({
+        ...prev,
+        names: prev.names.filter((n) => n !== optimisticEntry),
+      }));
+      throw new Error(
+        result.error ||
+          'Could not save name right now. Your text is still here — tap Suggest Name to retry.'
+      );
+    }
+
+    if (result.state) {
+      setServerState(result.state as PolledPublicState);
     }
   };
 

@@ -8,6 +8,7 @@ export interface GuessEntry {
   guess: RevealGender;
   side: FamilySide;
   relationship?: string;
+  deviceId?: string;
   timestamp: string;
 }
 

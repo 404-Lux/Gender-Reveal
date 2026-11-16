@@ -79,6 +79,7 @@ export function WaitingRoomStage({
   const [suggestedName, setSuggestedName] = useState('');
   const [submittingName, setSubmittingName] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
   const namesCardRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -119,14 +120,21 @@ export function WaitingRoomStage({
 
   const handleNameSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (suggestedName.trim().length < 2) return;
+    if (submittingName || suggestedName.trim().length < 2) return;
     setSubmittingName(true);
+    setNameError(null);
     try {
       await onSubmitNameSuggestion(suggestedName.trim());
       setSuggestedName('');
       setNameSaved(true);
       soundManager.play('seal', 1.1);
       setTimeout(() => setNameSaved(false), 2600);
+    } catch (err) {
+      setNameError(
+        err instanceof Error
+          ? err.message
+          : 'Could not save name right now. Tap Suggest Name to retry.'
+      );
     } finally {
       setSubmittingName(false);
     }
@@ -491,6 +499,15 @@ export function WaitingRoomStage({
               <p className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-[var(--text-secondary)]">
                 <ArrowsClockwise size={13} weight="light" className="animate-spin text-[var(--accent-primary)]" />
                 <span>Adding your baby name idea to the jar...</span>
+              </p>
+            )}
+
+            {nameError && (
+              <p
+                role="alert"
+                className="text-xs font-medium text-[var(--accent-primary)]"
+              >
+                {nameError}
               </p>
             )}
 

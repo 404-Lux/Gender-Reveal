@@ -67,7 +67,7 @@ function ensureSheetsStructure() {
 
   var schema = {
     settings: ['reveal_time', 'gender', 'locked'],
-    guesses: ['name', 'side', 'relationship', 'guess', 'timestamp'],
+    guesses: ['name', 'side', 'relationship', 'guess', 'timestamp', 'device_id'],
     wishes: ['name', 'guess', 'wish_for_baby', 'note_for_parents', 'timestamp'],
     names: ['guest', 'suggested_name', 'timestamp'],
   };
@@ -329,60 +329,124 @@ function doPost(e) {
       return jsonResponse(buildParentsDataPayload(ss));
     }
 
-    // Guest Actions
-    if (action === 'submitGuess') {
-      var name = cleanText(body.name, 60);
-      var rawSide = String(body.side || 'both').toLowerCase();
-      var side =
-        rawSide === 'mother'
-          ? 'mother'
-          : rawSide === 'father'
-          ? 'father'
-          : 'both';
-      var relationship = cleanText(body.relationship, 50);
-      var guess = body.guess === 'boy' ? 'boy' : 'girl';
-      if (!name) return jsonResponse({ error: 'Name required' });
-      if (!checkGuestRateLimit('guess_' + name)) {
-        return jsonResponse({ error: 'Rate limit exceeded' });
-      }
-      ss.getSheetByName('guesses').appendRow([
-        name,
-        side,
-        relationship,
-        guess,
-        nowIso,
-      ]);
-      invalidateStateCache();
-      return jsonResponse({ ok: true });
-    }
+function checkIdempotencyKey(key) {
+  if (!key) return false;
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'IDEMP_' + String(key).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48);
+  return Boolean(cache.get(cacheKey));
+}
 
-    if (action === 'submitWish') {
-      var wName = cleanText(body.name, 80) || 'Guest';
-      var wGuess =
-        body.guess === 'boy' || body.guess === 'girl' ? body.guess : '';
-      var wishForBaby = cleanText(body.wish_for_baby, 600);
-      var noteForParents = cleanText(body.note_for_parents, 600);
-      if (!wishForBaby) return jsonResponse({ error: 'Wish required' });
-      if (!checkGuestRateLimit('wish_' + wName)) {
-        return jsonResponse({ error: 'Rate limit exceeded' });
-      }
-      ss.getSheetByName('wishes').appendRow([
-        wName,
-        wGuess,
-        wishForBaby,
-        noteForParents,
-        nowIso,
-      ]);
-      return jsonResponse({ ok: true });
-    }
+function markIdempotencyKey(key) {
+  if (!key) return;
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'IDEMP_' + String(key).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48);
+  cache.put(cacheKey, '1', 600); // 10 minutes
+}
 
-    if (action === 'submitName') {
-      var nGuest = cleanText(body.guest, 60) || 'Guest';
-      var suggested = cleanText(body.suggested_name, 80);
-      if (!suggested) return jsonResponse({ error: 'Name suggestion required' });
-      ss.getSheetByName('names').appendRow([nGuest, suggested, nowIso]);
-      invalidateStateCache();
-      return jsonResponse({ ok: true });
+    // Guest Actions (Wrapped in LockService + Idempotency Key)
+    if (
+      action === 'submitGuess' ||
+      action === 'submitWish' ||
+      action === 'submitName'
+    ) {
+      var idempKey = cleanText(body.idempotencyKey, 64);
+      if (idempKey && checkIdempotencyKey(idempKey)) {
+        return jsonResponse({ ok: true, deduplicated: true });
+      }
+
+      var guestLock = LockService.getScriptLock();
+      try {
+        guestLock.waitLock(8000);
+      } catch (lockErr) {
+        return jsonResponse({
+          error: 'BUSY_RETRY',
+          retryable: true,
+          message: 'Server is busy, please retry in a moment.',
+        });
+      }
+
+      try {
+        if (idempKey && checkIdempotencyKey(idempKey)) {
+          return jsonResponse({ ok: true, deduplicated: true });
+        }
+
+        if (action === 'submitGuess') {
+          var name = cleanText(body.name, 60);
+          var rawSide = String(body.side || 'both').toLowerCase();
+          var side =
+            rawSide === 'mother'
+              ? 'mother'
+              : rawSide === 'father'
+              ? 'father'
+              : 'both';
+          var relationship = cleanText(body.relationship, 50);
+          var guess = body.guess === 'boy' ? 'boy' : 'girl';
+          var deviceId = cleanText(body.deviceId, 64);
+          if (!name) return jsonResponse({ error: 'Name required' });
+
+          var guessSheet = ss.getSheetByName('guesses');
+          var existingRows = guessSheet.getDataRange().getValues();
+          var normName = name.toLowerCase();
+          var matchedRowIdx = -1;
+
+          for (var r = 1; r < existingRows.length; r++) {
+            var rowName = String(existingRows[r][0] || '').trim().toLowerCase();
+            var rowDevice = String(existingRows[r][5] || '').trim();
+            if (
+              (deviceId && rowDevice && rowDevice === deviceId) ||
+              (!rowDevice && rowName === normName)
+            ) {
+              matchedRowIdx = r + 1; // 1-based sheet row
+              break;
+            }
+          }
+
+          if (matchedRowIdx > 1) {
+            guessSheet
+              .getRange(matchedRowIdx, 1, 1, 6)
+              .setValues([[name, side, relationship, guess, nowIso, deviceId]]);
+          } else {
+            guessSheet.appendRow([name, side, relationship, guess, nowIso, deviceId]);
+          }
+
+          markIdempotencyKey(idempKey);
+          invalidateStateCache();
+          return jsonResponse({ ok: true });
+        }
+
+        if (action === 'submitWish') {
+          var wName = cleanText(body.name, 80) || 'Guest';
+          var wGuess =
+            body.guess === 'boy' || body.guess === 'girl' ? body.guess : '';
+          var wishForBaby = cleanText(body.wish_for_baby, 600);
+          var noteForParents = cleanText(body.note_for_parents, 600);
+          if (!wishForBaby) return jsonResponse({ error: 'Wish required' });
+
+          ss.getSheetByName('wishes').appendRow([
+            wName,
+            wGuess,
+            wishForBaby,
+            noteForParents,
+            nowIso,
+          ]);
+          markIdempotencyKey(idempKey);
+          return jsonResponse({ ok: true });
+        }
+
+        if (action === 'submitName') {
+          var nGuest = cleanText(body.guest, 60) || 'Guest';
+          var suggested = cleanText(body.suggested_name, 80);
+          if (!suggested) {
+            return jsonResponse({ error: 'Name suggestion required' });
+          }
+          ss.getSheetByName('names').appendRow([nGuest, suggested, nowIso]);
+          markIdempotencyKey(idempKey);
+          invalidateStateCache();
+          return jsonResponse({ ok: true });
+        }
+      } finally {
+        guestLock.releaseLock();
+      }
     }
 
     if (action === 'submitAdvice') {
