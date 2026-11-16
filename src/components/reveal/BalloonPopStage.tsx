@@ -22,6 +22,7 @@ import {
   isLowEndDevice,
 } from '@/lib/tokens';
 import { soundManager, triggerHaptic } from '@/lib/sound';
+import { useWakeLock } from '@/lib/useWakeLock';
 import {
   PaperBalloonSvg,
   PaperOrnamentDivider,
@@ -106,6 +107,7 @@ export function BalloonPopStage({
   onOpenPhotobooth,
 }: BalloonPopStageProps) {
   const prefersReduced = useReducedMotion();
+  useWakeLock(true);
   const effectiveGender: RevealGender = gender || 'girl';
 
   const [step, setStep] = useState<RevealSequenceStep>('countdown10');

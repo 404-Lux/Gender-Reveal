@@ -16,6 +16,7 @@ import { EASINGS, PALETTE } from '@/lib/tokens';
 import { FamilySide } from '@/lib/serverStore';
 import { CountdownBreakdown, getPhilippineDateParts } from '@/lib/time';
 import { soundManager, triggerHaptic } from '@/lib/sound';
+import { useWakeLock } from '@/lib/useWakeLock';
 import {
   RollingNumber,
   SplitText,
@@ -73,6 +74,7 @@ export function WaitingRoomStage({
   onTriggerDemoRevealNow,
 }: WaitingRoomStageProps) {
   const [isMuted, setIsMuted] = useState(soundManager.getMuted());
+  useWakeLock(true);
   const [activeTab, setActiveTab] = useState<'wall' | 'names'>('wall');
   const [sideFilter, setSideFilter] = useState<'all' | FamilySide>('all');
 

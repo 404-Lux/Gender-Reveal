@@ -365,6 +365,9 @@ export function GenderRevealExperience({
       if (document.visibilityState === 'visible') {
         syncServerClock();
         runFlush();
+        if (!soundManager.getMuted()) {
+          soundManager.startLullaby();
+        }
       }
     };
     const onOnline = () => {
@@ -778,6 +781,31 @@ export function GenderRevealExperience({
       {/* Main Centered Stage Container */}
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-4 sm:px-6 sm:py-6 space-y-4">
         <InAppBrowserGuard context="general" />
+        {(stage === 'guess' || stage === 'wishes') &&
+          (serverState.revealed ||
+            (serverState.locked &&
+              (countdown.isFinalTenSeconds || countdown.isExpired))) && (
+            <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--accent-primary)]/40 bg-[var(--bg-surface)] px-4 py-3 text-left shadow-xs">
+              <p className="text-xs sm:text-sm font-medium text-[var(--text-primary)]">
+                The reveal is starting &mdash; join now whenever you&apos;re ready.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  hasAutoEnteredRevealRef.current = true;
+                  setStage('reveal');
+                  try {
+                    localStorage.setItem('pl_guest_stage', 'reveal');
+                  } catch {
+                    // Ignore
+                  }
+                }}
+                className="shrink-0 rounded-full bg-[var(--text-primary)] px-4 py-1.5 text-xs font-medium text-[var(--linen)] transition hover:opacity-90"
+              >
+                Join Now
+              </button>
+            </div>
+          )}
         <CurtainStageTransition stageKey={stage}>
           {/* PROTOTYPE / BALLOON POP REVEAL STAGE */}
           {(stage === 'prototype' || stage === 'reveal') && (
