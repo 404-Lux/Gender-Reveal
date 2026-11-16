@@ -1,5 +1,6 @@
 import { RevealGender } from './tokens';
 import { getDefaultRevealTimePHT, getNowPHTIso } from './time';
+import { collapseControlChars } from './moderation';
 
 export type FamilySide = 'mother' | 'father' | 'both';
 
@@ -9,6 +10,9 @@ export interface GuessEntry {
   side: FamilySide;
   relationship?: string;
   deviceId?: string;
+  late?: boolean;
+  hidden?: boolean;
+  flagged?: boolean;
   timestamp: string;
 }
 
@@ -17,12 +21,16 @@ export interface WishEntry {
   guess?: RevealGender;
   wish_for_baby: string;
   note_for_parents: string;
+  hidden?: boolean;
+  flagged?: boolean;
   timestamp: string;
 }
 
 export interface NameSuggestionEntry {
   guest: string;
   suggested_name: string;
+  hidden?: boolean;
+  flagged?: boolean;
   timestamp: string;
 }
 
@@ -233,8 +241,7 @@ export function checkRateLimit(key: string, minIntervalMs = 1200): boolean {
 }
 
 export function sanitizeText(input: unknown, maxLen = 280): string {
-  if (typeof input !== 'string') return '';
-  return input.trim().replace(/[<>]/g, '').slice(0, maxLen);
+  return collapseControlChars(input, maxLen);
 }
 
 export function buildPublicStatePayload() {
@@ -248,12 +255,15 @@ export function buildPublicStatePayload() {
   const revealed =
     isTimeReached && store.settings.locked && store.settings.gender !== null;
 
-  const boyCount = store.guesses.filter((g) => g.guess === 'boy').length;
-  const girlCount = store.guesses.filter((g) => g.guess === 'girl').length;
+  const visibleGuesses = store.guesses.filter((g) => !g.hidden);
+  const visibleNames = store.names.filter((n) => !n.hidden);
 
-  const motherCount = store.guesses.filter((g) => g.side === 'mother').length;
-  const fatherCount = store.guesses.filter((g) => g.side === 'father').length;
-  const bothCount = store.guesses.filter((g) => g.side === 'both').length;
+  const boyCount = visibleGuesses.filter((g) => g.guess === 'boy').length;
+  const girlCount = visibleGuesses.filter((g) => g.guess === 'girl').length;
+
+  const motherCount = visibleGuesses.filter((g) => g.side === 'mother').length;
+  const fatherCount = visibleGuesses.filter((g) => g.side === 'father').length;
+  const bothCount = visibleGuesses.filter((g) => g.side === 'both').length;
 
   const basePayload: Record<string, unknown> = {
     serverTime,
@@ -267,25 +277,26 @@ export function buildPublicStatePayload() {
       total: boyCount + girlCount,
     },
     sideCounts: {
-      all: store.guesses.length,
+      all: visibleGuesses.length,
       mother: motherCount,
       father: fatherCount,
       both: bothCount,
     },
-    guestWall: store.guesses.slice(-40).map((g) => ({
+    guestWall: visibleGuesses.slice(-40).map((g) => ({
       name: g.name,
       relationship: g.relationship || '',
       side: g.side || 'both',
       guess: g.guess,
+      late: Boolean(g.late),
       timestamp: g.timestamp,
     })),
-    names: store.names.slice(-20),
+    names: visibleNames.slice(-20),
   };
 
   if (revealed && store.settings.gender) {
     basePayload.gender = store.settings.gender;
-    basePayload.correctGuessers = store.guesses
-      .filter((g) => g.guess === store.settings.gender)
+    basePayload.correctGuessers = visibleGuesses
+      .filter((g) => !g.late && g.guess === store.settings.gender)
       .map((g) =>
         g.relationship ? `${g.name} · ${g.relationship}` : g.name
       );
@@ -302,8 +313,9 @@ export function buildParentsStatePayload() {
   const revealed =
     isTimeReached && store.settings.locked && store.settings.gender !== null;
 
-  const boyCount = store.guesses.filter((g) => g.guess === 'boy').length;
-  const girlCount = store.guesses.filter((g) => g.guess === 'girl').length;
+  const visibleGuesses = store.guesses.filter((g) => !g.hidden);
+  const boyCount = visibleGuesses.filter((g) => g.guess === 'boy').length;
+  const girlCount = visibleGuesses.filter((g) => g.guess === 'girl').length;
 
   return {
     serverTime: getNowPHTIso(nowMs),
@@ -316,14 +328,14 @@ export function buildParentsStatePayload() {
       girl: girlCount,
       total: boyCount + girlCount,
     },
-    guesses: store.guesses,
-    wishes: store.wishes,
-    names: store.names,
+    guesses: store.guesses.map((g, idx) => ({ ...g, _rowIndex: idx + 2 })),
+    wishes: store.wishes.map((w, idx) => ({ ...w, _rowIndex: idx + 2 })),
+    names: store.names.map((n, idx) => ({ ...n, _rowIndex: idx + 2 })),
     advice: store.advice,
     correctGuessers:
       revealed && store.settings.gender
-        ? store.guesses
-            .filter((g) => g.guess === store.settings.gender)
+        ? visibleGuesses
+            .filter((g) => !g.late && g.guess === store.settings.gender)
             .map((g) =>
               g.relationship ? `${g.name} · ${g.relationship}` : g.name
             )

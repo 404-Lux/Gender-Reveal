@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callAppsScriptProxy } from '@/lib/appsScriptProxy';
 import {
+  collapseControlChars,
+  containsProfanityOrSlur,
+  sanitizeSheetFormula,
+} from '@/lib/moderation';
+import {
   buildPublicStatePayload,
   checkRateLimit,
   FamilySide,
@@ -38,8 +43,10 @@ export async function POST(req: NextRequest) {
     );
 
     if (action === 'submitGuess') {
-      const name = sanitizeText(body.name, 60);
-      const relationship = sanitizeText(body.relationship, 50);
+      const name = sanitizeSheetFormula(collapseControlChars(body.name, 40));
+      const relationship = sanitizeSheetFormula(
+        collapseControlChars(body.relationship, 40)
+      );
       const cleanDeviceId = sanitizeText(deviceId, 64);
       const cleanIdempKey = sanitizeText(idempotencyKey, 64);
       const rawSide = String(body.side || 'both').toLowerCase();
@@ -55,6 +62,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Name is required.' }, { status: 400 });
       }
 
+      const flagged = containsProfanityOrSlur(`${name} ${relationship}`);
+      const hidden = flagged;
+      const revealMs = new Date(store.settings.reveal_time).getTime();
+      const isLate = !isNaN(revealMs) && Date.now() >= revealMs;
+
       if (hasAppsScript) {
         const proxyRes = await callAppsScriptProxy<{
           ok?: boolean;
@@ -67,6 +79,8 @@ export async function POST(req: NextRequest) {
           guess,
           deviceId: cleanDeviceId,
           idempotencyKey: cleanIdempKey,
+          flagged,
+          hidden,
           timestamp,
         });
 
@@ -108,6 +122,9 @@ export async function POST(req: NextRequest) {
           side,
           guess,
           deviceId: cleanDeviceId || undefined,
+          late: isLate,
+          hidden,
+          flagged,
           timestamp,
         };
       } else {
@@ -117,6 +134,9 @@ export async function POST(req: NextRequest) {
           side,
           guess,
           deviceId: cleanDeviceId || undefined,
+          late: isLate,
+          hidden,
+          flagged,
           timestamp,
         });
       }
@@ -128,9 +148,15 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'submitWish') {
-      const name = sanitizeText(body.name, 80) || 'A Loving Guest';
-      const wishForBaby = sanitizeText(body.wish_for_baby, 600);
-      const noteForParents = sanitizeText(body.note_for_parents, 600);
+      const name =
+        sanitizeSheetFormula(collapseControlChars(body.name, 40)) ||
+        'A Loving Guest';
+      const wishForBaby = sanitizeSheetFormula(
+        collapseControlChars(body.wish_for_baby, 600)
+      );
+      const noteForParents = sanitizeSheetFormula(
+        collapseControlChars(body.note_for_parents, 600)
+      );
       const cleanIdempKey = sanitizeText(idempotencyKey, 64);
       const guess: RevealGender | undefined =
         body.guess === 'boy' || body.guess === 'girl' ? body.guess : undefined;
@@ -141,6 +167,11 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
+
+      const flagged = containsProfanityOrSlur(
+        `${name} ${wishForBaby} ${noteForParents}`
+      );
+      const hidden = flagged;
 
       if (hasAppsScript) {
         const proxyRes = await callAppsScriptProxy<{
@@ -153,6 +184,8 @@ export async function POST(req: NextRequest) {
           wish_for_baby: wishForBaby,
           note_for_parents: noteForParents,
           idempotencyKey: cleanIdempKey,
+          flagged,
+          hidden,
           timestamp,
         });
 
@@ -186,6 +219,8 @@ export async function POST(req: NextRequest) {
         guess,
         wish_for_baby: wishForBaby,
         note_for_parents: noteForParents,
+        hidden,
+        flagged,
         timestamp,
       });
 
@@ -196,8 +231,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'submitName') {
-      const guest = sanitizeText(body.guest, 60) || 'Family Friend';
-      const suggestedName = sanitizeText(body.suggested_name, 80);
+      const guest =
+        sanitizeSheetFormula(collapseControlChars(body.guest, 40)) ||
+        'Family Friend';
+      const suggestedName = sanitizeSheetFormula(
+        collapseControlChars(body.suggested_name, 30)
+      );
       const cleanIdempKey = sanitizeText(idempotencyKey, 64);
 
       if (!suggestedName) {
@@ -206,6 +245,9 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
+
+      const flagged = containsProfanityOrSlur(`${guest} ${suggestedName}`);
+      const hidden = flagged;
 
       if (hasAppsScript) {
         const proxyRes = await callAppsScriptProxy<{
@@ -216,6 +258,8 @@ export async function POST(req: NextRequest) {
           guest,
           suggested_name: suggestedName,
           idempotencyKey: cleanIdempKey,
+          flagged,
+          hidden,
           timestamp,
         });
 
@@ -247,6 +291,8 @@ export async function POST(req: NextRequest) {
       store.names.unshift({
         guest,
         suggested_name: suggestedName,
+        hidden,
+        flagged,
         timestamp,
       });
 

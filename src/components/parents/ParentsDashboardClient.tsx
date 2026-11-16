@@ -62,9 +62,9 @@ interface ParentsDashboardData {
     girl: number;
     total: number;
   };
-  guesses: GuessEntry[];
-  wishes: WishEntry[];
-  names: NameSuggestionEntry[];
+  guesses: (GuessEntry & { _rowIndex?: number })[];
+  wishes: (WishEntry & { _rowIndex?: number })[];
+  names: (NameSuggestionEntry & { _rowIndex?: number })[];
   advice: AdviceEntry[];
   correctGuessers: string[];
 }
@@ -147,6 +147,8 @@ export function ParentsDashboardClient({
   const [postboxFilter, setPostboxFilter] = useState<'all' | 'boy' | 'girl'>(
     'all'
   );
+  const [showHiddenEntries, setShowHiddenEntries] = useState(false);
+  const [togglingHideKey, setTogglingHideKey] = useState<string | null>(null);
   const [activeLetterIdx, setActiveLetterIdx] = useState<number | null>(null);
   const [envelopeAnimKey, setEnvelopeAnimKey] = useState<number>(0);
   const [typewriterChars, setTypewriterChars] = useState<number>(0);
@@ -295,6 +297,53 @@ export function ParentsDashboardClient({
       isPast: false,
       isTooSoon: false,
     };
+  };
+
+  const handleToggleHideEntry = async (
+    tab: 'guesses' | 'wishes' | 'names',
+    rowIndex: number | undefined,
+    nextHidden: boolean
+  ) => {
+    const resolvedRow = rowIndex ?? 2;
+    const key = `${tab}:${resolvedRow}`;
+    setTogglingHideKey(key);
+    try {
+      const res = await fetch('/api/parents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug,
+          action: 'toggleHideEntry',
+          tab,
+          rowIndex: resolvedRow,
+          hidden: nextHidden,
+        }),
+      });
+      if (!res.ok) throw new Error('Static host fallback');
+      const json = await res.json();
+      if (json.ok && json.data) {
+        setData(json.data);
+        wishesRef.current = json.data.wishes || [];
+      }
+    } catch {
+      const store = getServerStore();
+      const arr =
+        tab === 'guesses'
+          ? store.guesses
+          : tab === 'wishes'
+          ? store.wishes
+          : store.names;
+      const idx = resolvedRow - 2;
+      if (idx >= 0 && idx < arr.length) {
+        arr[idx].hidden = nextHidden;
+        saveClientStore();
+        const nextData = buildParentsStatePayload() as ParentsDashboardData;
+        setData(nextData);
+        wishesRef.current = nextData.wishes || [];
+      }
+    } finally {
+      setTogglingHideKey(null);
+    }
   };
 
   const handleRequestSaveSchedule = (e: React.FormEvent) => {
@@ -509,8 +558,15 @@ export function ParentsDashboardClient({
       (activeLetter.note_for_parents?.length || 0)
     : 0;
 
+  const hiddenWishesCount = data.wishes.filter((w) => w.hidden).length;
+  const hiddenNamesCount = data.names.filter((n) => n.hidden).length;
+  const hiddenGuessesCount = data.guesses.filter((g) => g.hidden).length;
+  const totalHiddenCount =
+    hiddenWishesCount + hiddenNamesCount + hiddenGuessesCount;
+
   const filteredWishesWithIndex = data.wishes
     .map((w, originalIdx) => ({ wish: w, originalIdx }))
+    .filter(({ wish }) => (showHiddenEntries ? true : !wish.hidden))
     .filter(({ wish }) =>
       postboxFilter === 'all' ? true : wish.guess === postboxFilter
     );
@@ -1090,6 +1146,21 @@ export function ParentsDashboardClient({
                   {f.label}
                 </button>
               ))}
+              {totalHiddenCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowHiddenEntries((v) => !v)}
+                  className={`rounded-full border px-3.5 py-1 text-[11px] font-medium transition ${
+                    showHiddenEntries
+                      ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/15 text-[var(--accent-primary)]'
+                      : 'border-[var(--border-hairline)] bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  {showHiddenEntries
+                    ? `Hide Hidden (${hiddenWishesCount})`
+                    : `Show Hidden (${hiddenWishesCount})`}
+                </button>
+              )}
             </div>
           </div>
 
@@ -1135,10 +1206,16 @@ export function ParentsDashboardClient({
                   <div className="w-full space-y-0.5 border-t border-[var(--border-hairline)]/80 pt-2">
                     <div className="flex items-center justify-between text-[9px] sm:text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
                       <span>No. {String(originalIdx + 1).padStart(2, '0')}</span>
-                      {wish.guess && (
+                      {wish.flagged || wish.hidden ? (
                         <span className="font-semibold text-[var(--accent-primary)]">
-                          Team {wish.guess === 'boy' ? 'Boy' : 'Girl'}
+                          {wish.hidden ? 'Hidden' : 'Flagged'}
                         </span>
+                      ) : (
+                        wish.guess && (
+                          <span className="font-semibold text-[var(--accent-primary)]">
+                            Team {wish.guess === 'boy' ? 'Boy' : 'Girl'}
+                          </span>
+                        )
                       )}
                     </div>
                     <p className="font-script-note text-lg sm:text-xl leading-tight text-[var(--text-primary)] line-clamp-1">
@@ -1150,6 +1227,21 @@ export function ParentsDashboardClient({
                   </div>
                 </motion.button>
               ))}
+              {totalHiddenCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowHiddenEntries((v) => !v)}
+                  className={`rounded-full border px-3.5 py-1 text-[11px] font-medium transition ${
+                    showHiddenEntries
+                      ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/15 text-[var(--accent-primary)]'
+                      : 'border-[var(--border-hairline)] bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  {showHiddenEntries
+                    ? `Hide Hidden (${hiddenWishesCount})`
+                    : `Show Hidden (${hiddenWishesCount})`}
+                </button>
+              )}
             </div>
           </div>
         </motion.section>
@@ -1206,30 +1298,122 @@ export function ParentsDashboardClient({
 
           {/* Suggested Baby Names Jar (Bounded Scrollable Container) */}
           <div className="space-y-3 border-t border-[var(--border-hairline)] pt-5">
-            <h3 className="text-center font-display-editorial text-xl sm:text-2xl text-[var(--text-primary)]">
-              Suggested Names for Baby {babySurname} ({data.names.length})
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-display-editorial text-xl sm:text-2xl text-[var(--text-primary)]">
+                Suggested Names for Baby {babySurname} ({data.names.length})
+              </h3>
+              {totalHiddenCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowHiddenEntries((v) => !v)}
+                  className={`rounded-full border px-3 py-1 text-[11px] font-medium transition ${
+                    showHiddenEntries
+                      ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/15 text-[var(--accent-primary)]'
+                      : 'border-[var(--border-hairline)] bg-[var(--bg-primary)]/60 text-[var(--text-secondary)]'
+                  }`}
+                >
+                  {showHiddenEntries
+                    ? 'Hide Flagged / Hidden'
+                    : `Show Hidden (${hiddenNamesCount + hiddenGuessesCount})`}
+                </button>
+              )}
+            </div>
             <div className="max-h-[250px] overflow-y-auto pr-1">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {data.names.map((item, idx) => (
-                  <div
-                    key={`${item.suggested_name}-${idx}`}
-                    className="flex items-center justify-between rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/50 px-3.5 py-2.5"
-                  >
-                    <div className="flex items-center gap-2">
-                      <PaperStarSvg size={14} color={PALETTE.neutral.butter} />
-                      <span className="font-display-editorial text-base text-[var(--text-primary)]">
-                        {item.suggested_name}
-                      </span>
-                    </div>
-                    <span className="text-xs text-[var(--text-secondary)]">
-                      by {item.guest}
-                    </span>
-                  </div>
-                ))}
+                {data.names
+                  .filter((item) => (showHiddenEntries ? true : !item.hidden))
+                  .map((item, idx) => {
+                    const rowIdx = item._rowIndex ?? idx + 2;
+                    const toggleKey = `names:${rowIdx}`;
+                    return (
+                      <div
+                        key={`${item.suggested_name}-${idx}`}
+                        className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/50 px-3.5 py-2.5"
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <PaperStarSvg size={14} color={PALETTE.neutral.butter} />
+                          <span className="truncate font-display-editorial text-base text-[var(--text-primary)]">
+                            {item.suggested_name}
+                          </span>
+                          {(item.flagged || item.hidden) && (
+                            <span className="shrink-0 rounded-full border border-[var(--accent-primary)]/40 px-2 py-0.5 text-[9px] uppercase tracking-wider text-[var(--accent-primary)]">
+                              {item.hidden ? 'Hidden' : 'Flagged'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="text-xs text-[var(--text-secondary)]">
+                            by {item.guest}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={togglingHideKey === toggleKey}
+                            onClick={() =>
+                              handleToggleHideEntry('names', rowIdx, !item.hidden)
+                            }
+                            className="rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+                          >
+                            {item.hidden ? 'Unhide' : 'Hide'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           </div>
+
+          {/* Guest Votes Moderation List */}
+          {data.guesses.length > 0 && (
+            <div className="space-y-3 border-t border-[var(--border-hairline)] pt-5">
+              <h3 className="font-display-editorial text-lg sm:text-xl text-[var(--text-primary)]">
+                Guest Wall Entries ({data.guesses.length})
+              </h3>
+              <div className="max-h-[220px] overflow-y-auto pr-1 space-y-1.5">
+                {data.guesses
+                  .filter((g) => (showHiddenEntries ? true : !g.hidden))
+                  .map((g, idx) => {
+                    const rowIdx = g._rowIndex ?? idx + 2;
+                    const toggleKey = `guesses:${rowIdx}`;
+                    return (
+                      <div
+                        key={`${g.name}-${idx}`}
+                        className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/40 px-3 py-2 text-xs"
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="truncate font-medium text-[var(--text-primary)]">
+                            {g.name}
+                          </span>
+                          <span className="shrink-0 text-[var(--text-secondary)]">
+                            Team {g.guess === 'boy' ? 'Boy' : 'Girl'}
+                          </span>
+                          {g.late && (
+                            <span className="shrink-0 rounded-full border border-[var(--border-hairline)] px-2 py-0.5 text-[9px] uppercase tracking-wider text-[var(--text-secondary)]">
+                              Late
+                            </span>
+                          )}
+                          {(g.flagged || g.hidden) && (
+                            <span className="shrink-0 rounded-full border border-[var(--accent-primary)]/40 px-2 py-0.5 text-[9px] uppercase tracking-wider text-[var(--accent-primary)]">
+                              {g.hidden ? 'Hidden' : 'Flagged'}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={togglingHideKey === toggleKey}
+                          onClick={() =>
+                            handleToggleHideEntry('guesses', rowIdx, !g.hidden)
+                          }
+                          className="shrink-0 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+                        >
+                          {g.hidden ? 'Unhide' : 'Hide'}
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
 
           <PaperOrnamentDivider />
 
@@ -1524,6 +1708,24 @@ export function ParentsDashboardClient({
                         Team {activeLetter.guess === 'boy' ? 'Boy' : 'Girl'}
                       </span>
                     )}
+
+                    <button
+                      type="button"
+                      disabled={
+                        togglingHideKey ===
+                        `wishes:${activeLetter._rowIndex ?? activeLetterIdx + 2}`
+                      }
+                      onClick={() =>
+                        handleToggleHideEntry(
+                          'wishes',
+                          activeLetter._rowIndex ?? activeLetterIdx + 2,
+                          !activeLetter.hidden
+                        )
+                      }
+                      className="rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-1 text-[10px] font-medium text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+                    >
+                      {activeLetter.hidden ? 'Unhide Wish' : 'Hide Wish'}
+                    </button>
                   </div>
                 </div>
 

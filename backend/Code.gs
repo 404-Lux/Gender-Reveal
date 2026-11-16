@@ -44,21 +44,47 @@ function verifyParentsSlug(slug) {
   return slug === expected;
 }
 
+var PROFANITY_REGEX = /\b(fuck|shit|bitch|asshole|cunt|dick|pussy|whore|slut|bastard|nigger|faggot|retard|putang\s*ina|putangina|tangina|gago|gaga|ulol|tarantado|tanga|bobo|boba|pakyu|hindot|kantot|kupal|punyeta|leche|bwisit)\b/i;
+
 function cleanText(val, maxLen) {
   if (!val) return '';
   return String(val)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
     .replace(/[<>]/g, '')
     .slice(0, maxLen || 250);
 }
 
-function checkGuestRateLimit(identifier) {
+function sanitizeFormula(val) {
+  if (!val) return '';
+  var str = String(val);
+  var ch = str.charAt(0);
+  if (ch === '=' || ch === '+' || ch === '-' || ch === '@' || ch === '\t' || ch === '\r') {
+    return "'" + str;
+  }
+  return str;
+}
+
+function isFlaggedProfanity(val) {
+  if (!val) return false;
+  return PROFANITY_REGEX.test(String(val));
+}
+
+function checkGuestRateLimit(deviceKey) {
   var cache = CacheService.getScriptCache();
-  var key = 'RL_' + Utilities.base64EncodeWebSafe(String(identifier)).slice(0, 40);
+  var key = 'RL_' + Utilities.base64EncodeWebSafe(String(deviceKey || 'anon')).slice(0, 40);
   if (cache.get(key)) {
     return false;
   }
-  cache.put(key, '1', 2); // 2-second minimum spacing per guest identifier
+  cache.put(key, '1', 2); // 2-second minimum spacing per device
+
+  // Global burst guard (max ~45 writes per 10s window)
+  var globalCount = Number(cache.get('RL_GLOBAL') || 0);
+  if (globalCount >= 45) {
+    return false;
+  }
+  cache.put('RL_GLOBAL', String(globalCount + 1), 10);
   return true;
 }
 
@@ -67,9 +93,9 @@ function ensureSheetsStructure() {
 
   var schema = {
     settings: ['reveal_time', 'gender', 'locked'],
-    guesses: ['name', 'side', 'relationship', 'guess', 'timestamp', 'device_id'],
-    wishes: ['name', 'guess', 'wish_for_baby', 'note_for_parents', 'timestamp'],
-    names: ['guest', 'suggested_name', 'timestamp'],
+    guesses: ['name', 'side', 'relationship', 'guess', 'timestamp', 'device_id', 'late', 'hidden', 'flagged'],
+    wishes: ['name', 'guess', 'wish_for_baby', 'note_for_parents', 'timestamp', 'hidden', 'flagged'],
+    names: ['guest', 'suggested_name', 'timestamp', 'hidden', 'flagged'],
   };
 
   Object.keys(schema).forEach(function (tabName) {
@@ -79,6 +105,9 @@ function ensureSheetsStructure() {
       sheet.appendRow(schema[tabName]);
       if (tabName === 'settings') {
         sheet.appendRow(['2026-11-21T19:00:00+08:00', '', false]);
+      } else {
+        // Format guest text columns as plain text (@) to prevent formula evaluation
+        sheet.getRange(2, 1, 500, schema[tabName].length).setNumberFormat('@');
       }
     }
   });
@@ -106,6 +135,10 @@ function readSettingsRow(ss) {
   };
 }
 
+function isTrueCell(v) {
+  return v === true || String(v).toLowerCase() === 'true';
+}
+
 function readRowsAsObjects(ss, tabName) {
   var sheet = ss.getSheetByName(tabName);
   if (!sheet) return [];
@@ -114,7 +147,7 @@ function readRowsAsObjects(ss, tabName) {
   var headers = values[0];
   var result = [];
   for (var i = 1; i < values.length; i++) {
-    var obj = {};
+    var obj = { _rowIndex: i + 1 };
     for (var j = 0; j < headers.length; j++) {
       obj[headers[j]] = values[i][j];
     }
@@ -132,16 +165,22 @@ function buildPublicState(ss) {
     baseData = JSON.parse(cached);
   } else {
     var settings = readSettingsRow(ss);
-    var guesses = readRowsAsObjects(ss, 'guesses');
-    var names = readRowsAsObjects(ss, 'names');
-    var advice = readRowsAsObjects(ss, 'advice');
+    var allGuesses = readRowsAsObjects(ss, 'guesses');
+    var allNames = readRowsAsObjects(ss, 'names');
+
+    var visibleGuesses = allGuesses.filter(function (g) {
+      return !isTrueCell(g.hidden);
+    });
+    var visibleNames = allNames.filter(function (n) {
+      return !isTrueCell(n.hidden);
+    });
 
     var boyCount = 0;
     var girlCount = 0;
     var motherCount = 0;
     var fatherCount = 0;
     var bothCount = 0;
-    guesses.forEach(function (g) {
+    visibleGuesses.forEach(function (g) {
       if (g.guess === 'boy') boyCount++;
       if (g.guess === 'girl') girlCount++;
       var s = String(g.side || 'both').toLowerCase();
@@ -158,14 +197,13 @@ function buildPublicState(ss) {
         total: boyCount + girlCount,
       },
       sideCounts: {
-        all: guesses.length,
+        all: visibleGuesses.length,
         mother: motherCount,
         father: fatherCount,
         both: bothCount,
       },
-      guesses: guesses.slice(-40),
-      names: names.slice(-25).reverse(),
-      advice: advice.slice(-25).reverse(),
+      guesses: visibleGuesses.slice(-40),
+      names: visibleNames.slice(-25).reverse(),
     };
 
     cache.put(STATE_CACHE_KEY, JSON.stringify(baseData), STATE_CACHE_TTL_SEC);
@@ -197,16 +235,23 @@ function buildPublicState(ss) {
         timestamp: g.timestamp,
       };
     }),
-    names: baseData.names,
-    advice: baseData.advice,
+    names: baseData.names.map(function (n) {
+      return {
+        guest: n.guest,
+        suggested_name: n.suggested_name,
+        timestamp: n.timestamp,
+      };
+    }),
+    advice: [],
   };
 
   // CRITICAL: Gender is ONLY returned when serverTime >= reveal_time AND locked
+  // Exclude late guesses from the Honor Roll
   if (isRevealed) {
     response.gender = baseData.settings.gender;
     response.correctGuessers = baseData.guesses
       .filter(function (g) {
-        return g.guess === baseData.settings.gender;
+        return g.guess === baseData.settings.gender && !isTrueCell(g.late);
       })
       .map(function (g) {
         return g.relationship ? g.name + ' · ' + g.relationship : g.name;
@@ -233,10 +278,13 @@ function buildParentsDataPayload(ss) {
     settings.locked &&
     Boolean(settings.gender);
 
-  var boyCount = guesses.filter(function (g) {
+  var visibleGuesses = guesses.filter(function (g) {
+    return !isTrueCell(g.hidden);
+  });
+  var boyCount = visibleGuesses.filter(function (g) {
     return g.guess === 'boy';
   }).length;
-  var girlCount = guesses.filter(function (g) {
+  var girlCount = visibleGuesses.filter(function (g) {
     return g.guess === 'girl';
   }).length;
 
@@ -252,20 +300,66 @@ function buildParentsDataPayload(ss) {
       girl: girlCount,
       total: boyCount + girlCount,
     },
-    guesses: guesses,
-    wishes: wishes,
-    names: names,
+    guesses: guesses.map(function (g) {
+      return {
+        _rowIndex: g._rowIndex,
+        name: g.name,
+        side: g.side || 'both',
+        relationship: g.relationship || '',
+        guess: g.guess,
+        timestamp: g.timestamp,
+        late: isTrueCell(g.late),
+        hidden: isTrueCell(g.hidden),
+        flagged: isTrueCell(g.flagged),
+      };
+    }),
+    wishes: wishes.map(function (w) {
+      return {
+        _rowIndex: w._rowIndex,
+        name: w.name,
+        guess: w.guess,
+        wish_for_baby: w.wish_for_baby,
+        note_for_parents: w.note_for_parents,
+        timestamp: w.timestamp,
+        hidden: isTrueCell(w.hidden),
+        flagged: isTrueCell(w.flagged),
+      };
+    }),
+    names: names.map(function (n) {
+      return {
+        _rowIndex: n._rowIndex,
+        guest: n.guest,
+        suggested_name: n.suggested_name,
+        timestamp: n.timestamp,
+        hidden: isTrueCell(n.hidden),
+        flagged: isTrueCell(n.flagged),
+      };
+    }),
     advice: [],
     correctGuessers: isRevealed
-      ? guesses
+      ? visibleGuesses
           .filter(function (g) {
-            return g.guess === settings.gender;
+            return g.guess === settings.gender && !isTrueCell(g.late);
           })
           .map(function (g) {
-            return g.name;
+            return g.relationship ? g.name + ' · ' + g.relationship : g.name;
           })
       : [],
   };
+}
+
+function checkIdempotencyKey(key) {
+  if (!key) return false;
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'IDEMP_' + String(key).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48);
+  return Boolean(cache.get(cacheKey));
+}
+
+function markIdempotencyKey(key) {
+  if (!key) return;
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'IDEMP_' + String(key).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48);
+  cache.put(cacheKey, '1', 600); // 10 minutes
 }
 
 /**
@@ -329,21 +423,7 @@ function doPost(e) {
       return jsonResponse(buildParentsDataPayload(ss));
     }
 
-function checkIdempotencyKey(key) {
-  if (!key) return false;
-  var cache = CacheService.getScriptCache();
-  var cacheKey = 'IDEMP_' + String(key).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48);
-  return Boolean(cache.get(cacheKey));
-}
-
-function markIdempotencyKey(key) {
-  if (!key) return;
-  var cache = CacheService.getScriptCache();
-  var cacheKey = 'IDEMP_' + String(key).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48);
-  cache.put(cacheKey, '1', 600); // 10 minutes
-}
-
-    // Guest Actions (Wrapped in LockService + Idempotency Key)
+    // Guest Actions (Wrapped in LockService + Idempotency Key + Rate Limit + Formula Guard + Moderation)
     if (
       action === 'submitGuess' ||
       action === 'submitWish' ||
@@ -352,6 +432,14 @@ function markIdempotencyKey(key) {
       var idempKey = cleanText(body.idempotencyKey, 64);
       if (idempKey && checkIdempotencyKey(idempKey)) {
         return jsonResponse({ ok: true, deduplicated: true });
+      }
+
+      var rateKey = cleanText(body.deviceId, 64) || cleanText(body.name, 40) || 'anon';
+      if (!checkGuestRateLimit(rateKey + '_' + action)) {
+        return jsonResponse({
+          error: 'Please slow down a moment and try again.',
+          retryable: true,
+        });
       }
 
       var guestLock = LockService.getScriptLock();
@@ -370,8 +458,12 @@ function markIdempotencyKey(key) {
           return jsonResponse({ ok: true, deduplicated: true });
         }
 
+        var currentSettings = readSettingsRow(ss);
+        var revealMs = new Date(currentSettings.reveal_time).getTime();
+        var isLateSubmission = !isNaN(revealMs) && new Date().getTime() >= revealMs;
+
         if (action === 'submitGuess') {
-          var name = cleanText(body.name, 60);
+          var name = cleanText(body.name, 40);
           var rawSide = String(body.side || 'both').toLowerCase();
           var side =
             rawSide === 'mother'
@@ -383,6 +475,11 @@ function markIdempotencyKey(key) {
           var guess = body.guess === 'boy' ? 'boy' : 'girl';
           var deviceId = cleanText(body.deviceId, 64);
           if (!name) return jsonResponse({ error: 'Name required' });
+
+          var flaggedGuess = isFlaggedProfanity(name) || isFlaggedProfanity(relationship);
+          var hiddenGuess = flaggedGuess;
+          var safeName = sanitizeFormula(name);
+          var safeRel = sanitizeFormula(relationship);
 
           var guessSheet = ss.getSheetByName('guesses');
           var existingRows = guessSheet.getDataRange().getValues();
@@ -403,59 +500,89 @@ function markIdempotencyKey(key) {
 
           if (matchedRowIdx > 1) {
             guessSheet
-              .getRange(matchedRowIdx, 1, 1, 6)
-              .setValues([[name, side, relationship, guess, nowIso, deviceId]]);
+              .getRange(matchedRowIdx, 1, 1, 9)
+              .setValues([
+                [
+                  safeName,
+                  side,
+                  safeRel,
+                  guess,
+                  nowIso,
+                  deviceId,
+                  isLateSubmission,
+                  hiddenGuess,
+                  flaggedGuess,
+                ],
+              ]);
           } else {
-            guessSheet.appendRow([name, side, relationship, guess, nowIso, deviceId]);
+            guessSheet.appendRow([
+              safeName,
+              side,
+              safeRel,
+              guess,
+              nowIso,
+              deviceId,
+              isLateSubmission,
+              hiddenGuess,
+              flaggedGuess,
+            ]);
           }
 
           markIdempotencyKey(idempKey);
           invalidateStateCache();
-          return jsonResponse({ ok: true });
+          return jsonResponse({ ok: true, flagged: flaggedGuess });
         }
 
         if (action === 'submitWish') {
-          var wName = cleanText(body.name, 80) || 'Guest';
+          var wName = cleanText(body.name, 40) || 'Guest';
           var wGuess =
             body.guess === 'boy' || body.guess === 'girl' ? body.guess : '';
           var wishForBaby = cleanText(body.wish_for_baby, 600);
           var noteForParents = cleanText(body.note_for_parents, 600);
           if (!wishForBaby) return jsonResponse({ error: 'Wish required' });
 
+          var flaggedWish =
+            isFlaggedProfanity(wName) ||
+            isFlaggedProfanity(wishForBaby) ||
+            isFlaggedProfanity(noteForParents);
+
           ss.getSheetByName('wishes').appendRow([
-            wName,
+            sanitizeFormula(wName),
             wGuess,
-            wishForBaby,
-            noteForParents,
+            sanitizeFormula(wishForBaby),
+            sanitizeFormula(noteForParents),
             nowIso,
+            flaggedWish,
+            flaggedWish,
           ]);
           markIdempotencyKey(idempKey);
-          return jsonResponse({ ok: true });
+          return jsonResponse({ ok: true, flagged: flaggedWish });
         }
 
         if (action === 'submitName') {
-          var nGuest = cleanText(body.guest, 60) || 'Guest';
-          var suggested = cleanText(body.suggested_name, 80);
+          var nGuest = cleanText(body.guest, 40) || 'Guest';
+          var suggested = cleanText(body.suggested_name, 30);
           if (!suggested) {
             return jsonResponse({ error: 'Name suggestion required' });
           }
-          ss.getSheetByName('names').appendRow([nGuest, suggested, nowIso]);
+
+          var flaggedName =
+            isFlaggedProfanity(nGuest) || isFlaggedProfanity(suggested);
+
+          ss.getSheetByName('names').appendRow([
+            sanitizeFormula(nGuest),
+            sanitizeFormula(suggested),
+            nowIso,
+            flaggedName,
+            flaggedName,
+          ]);
           markIdempotencyKey(idempKey);
           invalidateStateCache();
-          return jsonResponse({ ok: true });
+          return jsonResponse({ ok: true, flagged: flaggedName });
         }
       } finally {
         guestLock.releaseLock();
       }
-    }
-
-    if (action === 'submitAdvice') {
-      var aGuest = cleanText(body.guest, 60) || 'Guest';
-      var adviceText = cleanText(body.advice, 400);
-      if (!adviceText) return jsonResponse({ error: 'Advice required' });
-      ss.getSheetByName('advice').appendRow([aGuest, adviceText, nowIso]);
-      invalidateStateCache();
-      return jsonResponse({ ok: true });
     }
 
     // Parents Actions (Require secret slug)
@@ -463,7 +590,8 @@ function markIdempotencyKey(key) {
       action === 'setRevealTime' ||
       action === 'revealNow' ||
       action === 'setGender' ||
-      action === 'resetGenderLock'
+      action === 'resetGenderLock' ||
+      action === 'toggleHideEntry'
     ) {
       if (!verifyParentsSlug(body.slug)) {
         return jsonResponse({ error: 'Not found' });
@@ -480,6 +608,24 @@ function markIdempotencyKey(key) {
           settingsSheet.getRange(2, 1).setValue(nextTime);
           invalidateStateCache();
           return jsonResponse({ ok: true, revealTime: nextTime });
+        }
+
+        if (action === 'toggleHideEntry') {
+          var tab = String(body.tab || '');
+          var rowIdx = Number(body.rowIndex || 0);
+          var nextHidden = Boolean(body.hidden);
+          var hiddenColMap = { guesses: 8, wishes: 6, names: 4 };
+          var colNum = hiddenColMap[tab];
+          if (!colNum || rowIdx < 2) {
+            return jsonResponse({ error: 'Invalid entry reference' });
+          }
+          var targetSheet = ss.getSheetByName(tab);
+          if (!targetSheet || rowIdx > targetSheet.getLastRow()) {
+            return jsonResponse({ error: 'Row not found' });
+          }
+          targetSheet.getRange(rowIdx, colNum).setValue(nextHidden);
+          invalidateStateCache();
+          return jsonResponse({ ok: true, hidden: nextHidden });
         }
 
         if (action === 'resetGenderLock') {

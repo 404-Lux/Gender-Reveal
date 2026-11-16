@@ -227,6 +227,61 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (action === 'toggleHideEntry') {
+      const tab = String(body.tab || '');
+      const rowIndex = Number(body.rowIndex);
+      const hidden = Boolean(body.hidden);
+
+      if (
+        !['guesses', 'wishes', 'names'].includes(tab) ||
+        !Number.isInteger(rowIndex) ||
+        rowIndex < 2
+      ) {
+        return NextResponse.json(
+          { error: 'Invalid moderation target.' },
+          { status: 400, headers: NO_STORE_HEADERS }
+        );
+      }
+
+      const remotePost = await callAppsScriptProxy<{
+        ok?: boolean;
+        error?: string;
+      }>('POST', 'toggleHideEntry', { slug, tab, rowIndex, hidden });
+
+      if (remotePost?.error) {
+        return NextResponse.json(
+          { error: remotePost.error },
+          { status: 400, headers: NO_STORE_HEADERS }
+        );
+      }
+
+      // Local fallback update
+      const localArr =
+        tab === 'guesses'
+          ? store.guesses
+          : tab === 'wishes'
+          ? store.wishes
+          : store.names;
+      const idx = rowIndex - 2;
+      if (idx >= 0 && idx < localArr.length) {
+        localArr[idx].hidden = hidden;
+      }
+
+      const remote = await callAppsScriptProxy<Record<string, unknown>>(
+        'POST',
+        'getParentsData',
+        { slug }
+      );
+
+      return NextResponse.json(
+        {
+          ok: true,
+          data: remote && remote.revealTime ? remote : buildParentsResponsePayload(),
+        },
+        { headers: NO_STORE_HEADERS }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Unknown action.' },
       { status: 400, headers: NO_STORE_HEADERS }
