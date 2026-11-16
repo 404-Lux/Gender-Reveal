@@ -1,14 +1,7 @@
 import React from 'react';
-import {
-  GenderRevealExperience,
-  GuestFlowStage,
-} from '@/components/guest/GenderRevealExperience';
+import { GenderRevealExperience } from '@/components/guest/GenderRevealExperience';
 
-export default function HomePage({
-  searchParams,
-}: {
-  searchParams?: { view?: string };
-}) {
+export default function HomePage() {
   const rawSurname = process.env.NEXT_PUBLIC_BABY_SURNAME;
   const babySurname =
     !rawSurname || rawSurname === 'Alonzo' ? 'Basio' : rawSurname;
@@ -24,26 +17,9 @@ export default function HomePage({
   const parentsSecretSlug =
     !rawSlug || rawSlug === 'alonzo-secret-2026' ? 'basio-secret-2026' : rawSlug;
 
-  const validStages: GuestFlowStage[] = [
-    'prototype',
-    'welcome',
-    'guess',
-    'wishes',
-    'waiting',
-    'reveal',
-    'result',
-    'photobooth',
-  ];
-
-  const requestedView = searchParams?.view as GuestFlowStage | undefined;
-  const initialStage: GuestFlowStage =
-    requestedView && validStages.includes(requestedView)
-      ? requestedView
-      : 'welcome';
-
   return (
     <GenderRevealExperience
-      initialStage={initialStage}
+      initialStage="welcome"
       babySurname={babySurname}
       coupleNames={coupleNames}
       isMockMode={isMockMode}

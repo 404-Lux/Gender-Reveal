@@ -12,6 +12,10 @@ export const metadata: Metadata = {
   },
 };
 
+export function generateStaticParams() {
+  return [{ slug: 'basio-secret-2026' }, { slug: 'alonzo-secret-2026' }];
+}
+
 export default function ParentsSecretPage({
   params,
 }: {

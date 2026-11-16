@@ -183,23 +183,51 @@ function createInitialMockStore(): ServerStoreData {
   };
 }
 
+const LOCAL_STORAGE_KEY = 'pl_basio_store_v2';
+
 export function getServerStore(): ServerStoreData {
-  if (!global.__PAPER_AND_LIGHT_STORE_BASIO_V2__) {
-    global.__PAPER_AND_LIGHT_STORE_BASIO_V2__ = createInitialMockStore();
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as ServerStoreData;
+        globalThis.__PAPER_AND_LIGHT_STORE_BASIO_V2__ = parsed;
+        return parsed;
+      }
+    } catch {
+      // Ignore
+    }
   }
-  return global.__PAPER_AND_LIGHT_STORE_BASIO_V2__;
+  if (!globalThis.__PAPER_AND_LIGHT_STORE_BASIO_V2__) {
+    globalThis.__PAPER_AND_LIGHT_STORE_BASIO_V2__ = createInitialMockStore();
+    saveClientStore();
+  }
+  return globalThis.__PAPER_AND_LIGHT_STORE_BASIO_V2__;
+}
+
+export function saveClientStore() {
+  if (typeof window !== 'undefined' && globalThis.__PAPER_AND_LIGHT_STORE_BASIO_V2__) {
+    try {
+      window.localStorage.setItem(
+        LOCAL_STORAGE_KEY,
+        JSON.stringify(globalThis.__PAPER_AND_LIGHT_STORE_BASIO_V2__)
+      );
+    } catch {
+      // Ignore
+    }
+  }
 }
 
 export function checkRateLimit(key: string, minIntervalMs = 1200): boolean {
-  if (!global.__PAPER_AND_LIGHT_RATE_LIMIT__) {
-    global.__PAPER_AND_LIGHT_RATE_LIMIT__ = new Map();
+  if (!globalThis.__PAPER_AND_LIGHT_RATE_LIMIT__) {
+    globalThis.__PAPER_AND_LIGHT_RATE_LIMIT__ = new Map();
   }
   const now = Date.now();
-  const prev = global.__PAPER_AND_LIGHT_RATE_LIMIT__.get(key) || 0;
+  const prev = globalThis.__PAPER_AND_LIGHT_RATE_LIMIT__.get(key) || 0;
   if (now - prev < minIntervalMs) {
     return false;
   }
-  global.__PAPER_AND_LIGHT_RATE_LIMIT__.set(key, now);
+  globalThis.__PAPER_AND_LIGHT_RATE_LIMIT__.set(key, now);
   return true;
 }
 
@@ -263,4 +291,41 @@ export function buildPublicStatePayload() {
   }
 
   return basePayload;
+}
+
+export function buildParentsStatePayload() {
+  const store = getServerStore();
+  const nowMs = Date.now();
+  const revealMs = new Date(store.settings.reveal_time).getTime();
+  const isTimeReached = nowMs >= revealMs;
+  const revealed =
+    isTimeReached && store.settings.locked && store.settings.gender !== null;
+
+  const boyCount = store.guesses.filter((g) => g.guess === 'boy').length;
+  const girlCount = store.guesses.filter((g) => g.guess === 'girl').length;
+
+  return {
+    serverTime: getNowPHTIso(nowMs),
+    revealTime: store.settings.reveal_time,
+    locked: store.settings.locked,
+    revealed,
+    gender: revealed ? store.settings.gender : null,
+    tally: {
+      boy: boyCount,
+      girl: girlCount,
+      total: boyCount + girlCount,
+    },
+    guesses: store.guesses,
+    wishes: store.wishes,
+    names: store.names,
+    advice: store.advice,
+    correctGuessers:
+      revealed && store.settings.gender
+        ? store.guesses
+            .filter((g) => g.guess === store.settings.gender)
+            .map((g) =>
+              g.relationship ? `${g.name} · ${g.relationship}` : g.name
+            )
+        : [],
+  };
 }

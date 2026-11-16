@@ -40,8 +40,11 @@ import { CreatorBrandSignature } from '@/components/shared/CreatorBrandSignature
 import { exportMemoryBookPdf } from '@/lib/memoryBookPdf';
 import {
   AdviceEntry,
+  buildParentsStatePayload,
+  getServerStore,
   GuessEntry,
   NameSuggestionEntry,
+  saveClientStore,
   WishEntry,
 } from '@/lib/serverStore';
 
@@ -139,12 +142,20 @@ export function ParentsDashboardClient({
       const res = await fetch(`/api/parents?slug=${encodeURIComponent(slug)}`, {
         cache: 'no-store',
       });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error('Static host fallback');
       const json = (await res.json()) as ParentsDashboardData;
       setData(json);
       wishesRef.current = json.wishes || [];
       if (!hasInitializedPicker) {
         syncPickerFromIso(json.revealTime);
+        setHasInitializedPicker(true);
+      }
+    } catch {
+      const localJson = buildParentsStatePayload() as ParentsDashboardData;
+      setData(localJson);
+      wishesRef.current = localJson.wishes || [];
+      if (!hasInitializedPicker) {
+        syncPickerFromIso(localJson.revealTime);
         setHasInitializedPicker(true);
       }
     } finally {
@@ -240,12 +251,20 @@ export function ParentsDashboardClient({
           revealTime: previewIso,
         }),
       });
+      if (!res.ok) throw new Error('Static host fallback');
       const json = await res.json();
       if (json.ok && json.data) {
         setData(json.data);
         soundManager.play('seal', 1.05);
         setTimeFeedback('Reveal schedule saved and synced for all guests.');
       }
+    } catch {
+      const store = getServerStore();
+      store.settings.reveal_time = previewIso;
+      saveClientStore();
+      setData(buildParentsStatePayload() as ParentsDashboardData);
+      soundManager.play('seal', 1.05);
+      setTimeFeedback('Reveal schedule saved and synced for all guests.');
     } finally {
       setSavingTime(false);
     }
@@ -264,6 +283,7 @@ export function ParentsDashboardClient({
           action: 'revealNow',
         }),
       });
+      if (!res.ok) throw new Error('Static host fallback');
       const json = await res.json();
       if (json.ok && json.data) {
         setData(json.data);
@@ -273,6 +293,21 @@ export function ParentsDashboardClient({
           'Reveal Now triggered! All connected guests are entering the balloon pop sequence.'
         );
       }
+    } catch {
+      const store = getServerStore();
+      store.settings.reveal_time = getNowPHTIso(Date.now() - 1000);
+      if (!store.settings.gender) {
+        store.settings.gender = 'girl';
+        store.settings.locked = true;
+      }
+      saveClientStore();
+      const nextData = buildParentsStatePayload() as ParentsDashboardData;
+      setData(nextData);
+      syncPickerFromIso(nextData.revealTime);
+      soundManager.play('heroPop');
+      setTimeFeedback(
+        'Reveal Now triggered! All connected guests are entering the balloon pop sequence.'
+      );
     } finally {
       setSavingTime(false);
     }
@@ -294,8 +329,9 @@ export function ParentsDashboardClient({
           gender: pendingGender,
         }),
       });
+      if (!res.ok) throw new Error('Static host fallback');
       const json = await res.json();
-      if (!res.ok || json.error) {
+      if (json.error) {
         setLockError(json.error || 'Could not lock gender.');
       } else if (json.data) {
         setData(json.data);
@@ -303,23 +339,41 @@ export function ParentsDashboardClient({
         setConfirmStepOpen(false);
         setPendingGender(null);
       }
+    } catch {
+      const store = getServerStore();
+      store.settings.gender = pendingGender;
+      store.settings.locked = true;
+      saveClientStore();
+      setData(buildParentsStatePayload() as ParentsDashboardData);
+      soundManager.play('seal', 0.95);
+      setConfirmStepOpen(false);
+      setPendingGender(null);
     } finally {
       setLockingGender(false);
     }
   };
 
   const handleDevResetGenderLock = async () => {
-    const res = await fetch('/api/parents', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        slug,
-        action: 'devResetLock',
-      }),
-    });
-    const json = await res.json();
-    if (json.ok && json.data) {
-      setData(json.data);
+    try {
+      const res = await fetch('/api/parents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug,
+          action: 'devResetLock',
+        }),
+      });
+      if (!res.ok) throw new Error('Static host fallback');
+      const json = await res.json();
+      if (json.ok && json.data) {
+        setData(json.data);
+      }
+    } catch {
+      const store = getServerStore();
+      store.settings.gender = null;
+      store.settings.locked = false;
+      saveClientStore();
+      setData(buildParentsStatePayload() as ParentsDashboardData);
     }
   };
 

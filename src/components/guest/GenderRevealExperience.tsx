@@ -14,9 +14,15 @@ import {
   RevealGender,
   ThemeMode,
 } from '@/lib/tokens';
-import type { FamilySide } from '@/lib/serverStore';
+import {
+  buildPublicStatePayload,
+  FamilySide,
+  getServerStore,
+  saveClientStore,
+} from '@/lib/serverStore';
 import {
   getDefaultRevealTimePHT,
+  getNowPHTIso,
   getSyncedCountdown,
 } from '@/lib/time';
 import { soundManager } from '@/lib/sound';
@@ -198,6 +204,22 @@ export function GenderRevealExperience({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      const params = new URLSearchParams(window.location.search);
+      const viewParam = params.get('view') as GuestFlowStage | null;
+      const validStages: GuestFlowStage[] = [
+        'prototype',
+        'welcome',
+        'guess',
+        'wishes',
+        'waiting',
+        'reveal',
+        'result',
+        'photobooth',
+      ];
+      if (viewParam && validStages.includes(viewParam)) {
+        setStage(viewParam);
+      }
+
       const savedName = localStorage.getItem('pl_guest_name');
       const savedSide = localStorage.getItem('pl_guest_side') as FamilySide | null;
       const savedRel = localStorage.getItem('pl_guest_relationship');
@@ -252,8 +274,10 @@ export function GenderRevealExperience({
         setIsLateJoinReplay(true);
       }
     } catch {
-      failCountRef.current += 1;
-      setIsReconnecting(true);
+      // Static host fallback (e.g. GitHub Pages): use client-side localStorage store seamlessly
+      const localData = buildPublicStatePayload() as unknown as PolledPublicState;
+      setServerState(localData);
+      setIsReconnecting(false);
     }
   }, [stage]);
 
@@ -329,19 +353,33 @@ export function GenderRevealExperience({
       // Ignore
     }
 
-    const res = await fetch('/api/guest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'submitGuess',
+    try {
+      const res = await fetch('/api/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submitGuess',
+          name: payload.name,
+          side: payload.side,
+          relationship: payload.relationship,
+          guess: payload.guess,
+        }),
+      });
+      if (!res.ok) throw new Error('Static host fallback');
+      const json = await res.json();
+      if (json.state) setServerState(json.state);
+    } catch {
+      const store = getServerStore();
+      store.guesses.push({
         name: payload.name,
         side: payload.side,
         relationship: payload.relationship,
         guess: payload.guess,
-      }),
-    });
-    const json = await res.json();
-    if (json.state) setServerState(json.state);
+        timestamp: getNowPHTIso(),
+      });
+      saveClientStore();
+      setServerState(buildPublicStatePayload() as unknown as PolledPublicState);
+    }
 
     if (serverState.revealed || isLateJoinReplay) {
       handleStageChange('reveal');
@@ -357,47 +395,85 @@ export function GenderRevealExperience({
     const displaySender = guestRelationship
       ? `${guestName} · ${guestRelationship}`
       : guestName;
-    const res = await fetch('/api/guest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'submitWish',
+    try {
+      const res = await fetch('/api/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submitWish',
+          name: displaySender,
+          guess: guestGuess,
+          wish_for_baby: payload.wishForBaby,
+          note_for_parents: payload.noteForParents,
+        }),
+      });
+      if (!res.ok) throw new Error('Static host fallback');
+      const json = await res.json();
+      if (json.state) setServerState(json.state);
+    } catch {
+      const store = getServerStore();
+      store.wishes.push({
         name: displaySender,
-        guess: guestGuess,
+        guess: guestGuess || undefined,
         wish_for_baby: payload.wishForBaby,
         note_for_parents: payload.noteForParents,
-      }),
-    });
-    const json = await res.json();
-    if (json.state) setServerState(json.state);
+        timestamp: getNowPHTIso(),
+      });
+      saveClientStore();
+      setServerState(buildPublicStatePayload() as unknown as PolledPublicState);
+    }
   };
 
   const handleNameSuggestionSubmit = async (suggestedName: string) => {
-    const res = await fetch('/api/guest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'submitName',
+    try {
+      const res = await fetch('/api/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submitName',
+          guest: guestName || 'Family Guest',
+          suggested_name: suggestedName,
+        }),
+      });
+      if (!res.ok) throw new Error('Static host fallback');
+      const json = await res.json();
+      if (json.state) setServerState(json.state);
+    } catch {
+      const store = getServerStore();
+      store.names.push({
         guest: guestName || 'Family Guest',
         suggested_name: suggestedName,
-      }),
-    });
-    const json = await res.json();
-    if (json.state) setServerState(json.state);
+        timestamp: getNowPHTIso(),
+      });
+      saveClientStore();
+      setServerState(buildPublicStatePayload() as unknown as PolledPublicState);
+    }
   };
 
   const handleAdviceSubmit = async (advice: string) => {
-    const res = await fetch('/api/guest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'submitAdvice',
+    try {
+      const res = await fetch('/api/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submitAdvice',
+          guest: guestName || 'Family Guest',
+          advice,
+        }),
+      });
+      if (!res.ok) throw new Error('Static host fallback');
+      const json = await res.json();
+      if (json.state) setServerState(json.state);
+    } catch {
+      const store = getServerStore();
+      store.advice.push({
         guest: guestName || 'Family Guest',
         advice,
-      }),
-    });
-    const json = await res.json();
-    if (json.state) setServerState(json.state);
+        timestamp: getNowPHTIso(),
+      });
+      saveClientStore();
+      setServerState(buildPublicStatePayload() as unknown as PolledPublicState);
+    }
   };
 
   const effectiveRevealedGender: RevealGender =
