@@ -196,6 +196,7 @@ export function GenderRevealExperience({
   const failCountRef = useRef<number>(0);
   const hasAutoEnteredRevealRef = useRef<boolean>(false);
   const pendingPostRevealStageRef = useRef<GuestFlowStage | null>(null);
+  const [hasHydrated, setHasHydrated] = useState<boolean>(false);
 
   // Automatically preload and start background lullaby music on mount
   useEffect(() => {
@@ -206,6 +207,23 @@ export function GenderRevealExperience({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      // Restore cached serverState immediately so refresh never flashes default dates
+      const cachedStateRaw = localStorage.getItem('pl_cached_public_state');
+      let cachedRevealed = false;
+      let cachedGender: RevealGender | undefined;
+      if (cachedStateRaw) {
+        try {
+          const parsed = JSON.parse(cachedStateRaw) as PolledPublicState;
+          if (parsed && parsed.revealTime) {
+            setServerState(parsed);
+            cachedRevealed = Boolean(parsed.revealed);
+            cachedGender = parsed.gender;
+          }
+        } catch {
+          // Ignore malformed cache
+        }
+      }
+
       const params = new URLSearchParams(window.location.search);
       const viewParam = params.get('view') as GuestFlowStage | null;
       const validStages: GuestFlowStage[] = [
@@ -248,7 +266,13 @@ export function GenderRevealExperience({
           savedStage === 'result' ||
           savedStage === 'photobooth'
         ) {
-          if (isMockMode) {
+          if (isMockMode || (cachedRevealed && cachedGender)) {
+            if (
+              cachedGender &&
+              (savedStage === 'result' || savedStage === 'photobooth')
+            ) {
+              applyThemeVariables(cachedGender);
+            }
             setStage(savedStage);
           } else {
             pendingPostRevealStageRef.current = savedStage;
@@ -261,6 +285,8 @@ export function GenderRevealExperience({
       }
     } catch {
       // Ignore
+    } finally {
+      setHasHydrated(true);
     }
   }, [isMockMode]);
 
@@ -292,6 +318,11 @@ export function GenderRevealExperience({
       }
 
       setServerState(data);
+      try {
+        localStorage.setItem('pl_cached_public_state', JSON.stringify(data));
+      } catch {
+        // Ignore
+      }
       setIsReconnecting(false);
       failCountRef.current = 0;
 
@@ -318,13 +349,18 @@ export function GenderRevealExperience({
 
   useEffect(() => {
     pollServerState();
-    const baseDelay = countdown.isFinalMinute ? 2000 : 4000;
+    const baseDelay =
+      stage === 'reveal'
+        ? 1500
+        : countdown.isFinalMinute
+        ? 2000
+        : 4000;
     const backoffMultiplier = Math.min(4, Math.pow(1.5, failCountRef.current));
     const intervalMs = Math.round(baseDelay * backoffMultiplier);
 
     const timer = setInterval(pollServerState, intervalMs);
     return () => clearInterval(timer);
-  }, [pollServerState, countdown.isFinalMinute]);
+  }, [pollServerState, countdown.isFinalMinute, stage]);
 
   useEffect(() => {
     if (
@@ -435,11 +471,8 @@ export function GenderRevealExperience({
       setServerState(buildPublicStatePayload() as unknown as PolledPublicState);
     }
 
-    if (serverState.revealed || isLateJoinReplay) {
-      handleStageChange('reveal');
-    } else {
-      handleStageChange('wishes');
-    }
+    // Always let guests (including late guests) leave their wishes & parent notes after voting
+    handleStageChange('wishes');
   };
 
   const handleWishSubmit = async (payload: {
@@ -541,6 +574,16 @@ export function GenderRevealExperience({
 
   const effectiveRevealedGender: RevealGender =
     serverState.gender || devPreviewGender;
+
+  if (!hasHydrated) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center p-6 text-center">
+        <p className="font-display-editorial text-xl text-[var(--text-secondary)]">
+          Preparing celebration...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-dvh flex flex-col justify-between">
@@ -652,8 +695,13 @@ export function GenderRevealExperience({
               guestGuess={guestGuess}
               babySurname={babySurname}
               coupleNames={coupleNames}
+              isRevealReady={Boolean(serverState.revealed || isLateJoinReplay)}
               onBack={() => handleStageChange('guess')}
-              onSkipToWaitingRoom={() => handleStageChange('waiting')}
+              onSkipToWaitingRoom={() =>
+                handleStageChange(
+                  serverState.revealed || isLateJoinReplay ? 'reveal' : 'waiting'
+                )
+              }
               onSubmitWish={handleWishSubmit}
             />
           )}
@@ -714,6 +762,7 @@ export function GenderRevealExperience({
               guestName={guestName}
               babySurname={babySurname}
               isMockMode={isMockMode}
+              onReplayReveal={() => handleStageChange('reveal')}
               onChangePreviewGender={
                 isMockMode
                   ? (g) => {

@@ -6,10 +6,9 @@
  *
  * Required Google Sheet Tabs & Header Columns (auto-initialized if missing):
  *   1. settings : reveal_time | gender | locked
- *   2. guesses  : name | guess | timestamp
- *   3. wishes   : name | wish_for_baby | note_for_parents | timestamp
+ *   2. guesses  : name | side | relationship | guess | timestamp
+ *   3. wishes   : name | guess | wish_for_baby | note_for_parents | timestamp
  *   4. names    : guest | suggested_name | timestamp
- *   5. advice   : guest | advice | timestamp
  *
  * Required Script Properties (Project Settings -> Script Properties):
  *   - APPS_SCRIPT_SECRET  : Shared secret matching Next.js APPS_SCRIPT_SECRET
@@ -71,7 +70,6 @@ function ensureSheetsStructure() {
     guesses: ['name', 'side', 'relationship', 'guess', 'timestamp'],
     wishes: ['name', 'guess', 'wish_for_baby', 'note_for_parents', 'timestamp'],
     names: ['guest', 'suggested_name', 'timestamp'],
-    advice: ['guest', 'advice', 'timestamp'],
   };
 
   Object.keys(schema).forEach(function (tabName) {

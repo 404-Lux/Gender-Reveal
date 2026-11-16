@@ -108,10 +108,10 @@ export function BalloonPopStage({
   const prefersReduced = useReducedMotion();
   const effectiveGender: RevealGender = gender || 'girl';
 
-  const [step, setStep] = useState<RevealSequenceStep>(
-    gender === null && !isPrototypeMode ? 'shy' : 'countdown10'
-  );
+  const [step, setStep] = useState<RevealSequenceStep>('countdown10');
   const [secondsLeft, setSecondsLeft] = useState<number>(10);
+  const latestGenderRef = useRef<RevealGender | null>(gender);
+  latestGenderRef.current = gender;
   const [risingBalloons, setRisingBalloons] = useState<RisingBalloon[]>([]);
   const [poppedScore, setPoppedScore] = useState<number>(0);
 
@@ -140,8 +140,7 @@ export function BalloonPopStage({
 
   useEffect(() => {
     if (step === 'shy' && gender) {
-      setSecondsLeft(10);
-      setStep('countdown10');
+      setStep('hero');
     }
   }, [gender, step]);
 
@@ -365,7 +364,11 @@ export function BalloonPopStage({
           clearInterval(spawner);
           triggerHaptic([30, 45, 30]);
           setRisingBalloons([]);
-          setStep('hero');
+          if (latestGenderRef.current || isPrototypeMode) {
+            setStep('hero');
+          } else {
+            setStep('shy');
+          }
           return 0;
         }
         const nextVal = prev - 1;

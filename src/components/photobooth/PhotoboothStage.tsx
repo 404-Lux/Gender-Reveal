@@ -14,6 +14,7 @@ import {
   Square,
   Prohibit,
   ArrowUpRight,
+  ArrowCounterClockwise,
 } from '@phosphor-icons/react';
 import { PALETTE, RevealGender } from '@/lib/tokens';
 import { soundManager, triggerHaptic } from '@/lib/sound';
@@ -241,6 +242,7 @@ export interface PhotoboothStageProps {
   babySurname?: string;
   isMockMode?: boolean;
   onChangePreviewGender?: (g: RevealGender) => void;
+  onReplayReveal?: () => void;
 }
 
 export function PhotoboothStage({
@@ -249,6 +251,7 @@ export function PhotoboothStage({
   babySurname = 'Basio',
   isMockMode = false,
   onChangePreviewGender,
+  onReplayReveal,
 }: PhotoboothStageProps) {
   const activeFrames = gender === 'boy' ? BOY_FRAMES : GIRL_FRAMES;
 
@@ -857,8 +860,16 @@ export function PhotoboothStage({
           </p>
         </div>
 
-        {/* Dev-only Frame Set Theme Switcher */}
-        {isMockMode && onChangePreviewGender && (
+        <div className="flex flex-wrap items-center gap-2.5">
+          {onReplayReveal && (
+            <TactileButton variant="secondary" onClick={onReplayReveal}>
+              <ArrowCounterClockwise size={16} weight="light" />
+              <span>Replay Balloon Reveal</span>
+            </TactileButton>
+          )}
+
+          {/* Dev-only Frame Set Theme Switcher */}
+          {isMockMode && onChangePreviewGender && (
           <div className="flex items-center gap-2 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs">
             <span className="font-medium text-[var(--text-secondary)]">Dev Frame Set:</span>
             <button
@@ -884,7 +895,8 @@ export function PhotoboothStage({
               Girl Frames (3)
             </button>
           </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* In-App Browser Camera & Download Guard (Messenger / Instagram / Viber) */}

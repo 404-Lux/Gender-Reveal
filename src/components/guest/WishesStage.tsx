@@ -19,6 +19,7 @@ export interface WishesStageProps {
   guestGuess: RevealGender | null;
   babySurname: string;
   coupleNames: string;
+  isRevealReady?: boolean;
   onBack: () => void;
   onSkipToWaitingRoom: () => void;
   onSubmitWish: (data: {
@@ -32,6 +33,7 @@ export function WishesStage({
   guestGuess,
   babySurname,
   coupleNames,
+  isRevealReady = false,
   onBack,
   onSkipToWaitingRoom,
   onSubmitWish,
@@ -402,7 +404,11 @@ export function WishesStage({
                 transition={{ duration: 0.4, ease: EASINGS.editorialOut }}
               >
                 <TactileButton variant="primary" onClick={onSkipToWaitingRoom}>
-                  <span>Continue to Waiting Room</span>
+                  <span>
+                    {isRevealReady
+                      ? 'Watch Balloon Pop Reveal'
+                      : 'Continue to Waiting Room'}
+                  </span>
                   <ArrowRight size={15} weight="light" />
                 </TactileButton>
               </motion.div>
