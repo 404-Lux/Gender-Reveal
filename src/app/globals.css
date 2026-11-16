@@ -1,0 +1,136 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Pre-reveal (neutral, warm) — Exact tokens from brief */
+  --paper: #F4EEE3;
+  --linen: #FBF8F2;
+  --ink: #26302B;
+  --fern: #66745E;
+  --clay: #C98A62;
+  --butter: #E8CF92;
+  --fog: #C9CEC6;
+
+  /* Reveal: Boy theme — Exact tokens from brief */
+  --tide: #4F7FA3;
+  --deep-tide: #1F3B52;
+  --mist: #D5E2EA;
+  --sand: #EADBC0;
+
+  /* Reveal: Girl theme — Exact tokens from brief */
+  --peony: #D4808F;
+  --mulberry: #5E2A3F;
+  --petal: #F0D2D0;
+  /* --sand is shared (#EADBC0) */
+
+  /* Active Dynamic Theme Tokens (default to neutral pre-reveal) */
+  --bg-primary: var(--paper);
+  --bg-surface: var(--linen);
+  --text-primary: var(--ink);
+  --text-secondary: var(--fern);
+  --accent-primary: var(--clay);
+  --accent-warm: var(--butter);
+  --border-hairline: var(--fog);
+}
+
+html[data-theme="boy"] {
+  --bg-primary: var(--mist);
+  --bg-surface: var(--linen);
+  --text-primary: var(--deep-tide);
+  --text-secondary: var(--tide);
+  --accent-primary: var(--tide);
+  --accent-warm: var(--sand);
+  --border-hairline: #B4C8D6;
+}
+
+html[data-theme="girl"] {
+  --bg-primary: var(--petal);
+  --bg-surface: var(--linen);
+  --text-primary: var(--mulberry);
+  --text-secondary: #874860;
+  --accent-primary: var(--peony);
+  --accent-warm: var(--sand);
+  --border-hairline: #DFB9BE;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-instrument), system-ui, -apple-system, sans-serif;
+  transition: background-color 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+              color 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow-x: hidden;
+  min-height: 100dvh;
+}
+
+/* Fraunces Display with warm Soft & Wonk optical settings */
+.font-display-editorial {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-variation-settings: "SOFT" 80, "WONK" 1;
+  letter-spacing: -0.028em;
+}
+
+.font-script-note {
+  font-family: var(--font-caveat), cursive;
+}
+
+/* Tactile Paper-Cut Elevation Shadows */
+.paper-cut-shadow {
+  filter: drop-shadow(0 6px 12px rgba(38, 48, 43, 0.08))
+          drop-shadow(0 2px 3px rgba(38, 48, 43, 0.06));
+}
+
+.paper-card-surface {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-hairline);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 10px 28px -8px rgba(38, 48, 43, 0.07),
+    0 2px 6px -1px rgba(38, 48, 43, 0.04);
+}
+
+/* Editorial hairline divider */
+.hairline-divider {
+  border-color: var(--border-hairline);
+  transition: border-color 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Custom subtle scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-hairline);
+  border-radius: 9999px;
+}
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.15s !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html[data-reduced-motion="true"] *,
+html[data-reduced-motion="true"] *::before,
+html[data-reduced-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.15s !important;
+}
