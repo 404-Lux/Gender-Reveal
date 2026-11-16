@@ -28,6 +28,7 @@ import {
 import { soundManager } from '@/lib/sound';
 import { CurtainStageTransition } from '@/components/shared/MotionPrimitives';
 import { CreatorBrandSignature } from '@/components/shared/CreatorBrandSignature';
+import { InAppBrowserGuard } from '@/components/shared/InAppBrowserGuard';
 import { WelcomeStage } from './WelcomeStage';
 import { GuessStage } from './GuessStage';
 import { WishesStage } from './WishesStage';
@@ -520,7 +521,8 @@ export function GenderRevealExperience({
       </header>
 
       {/* Main Centered Stage Container */}
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-4 sm:px-6 sm:py-6">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-4 sm:px-6 sm:py-6 space-y-4">
+        <InAppBrowserGuard context="general" />
         <CurtainStageTransition stageKey={stage}>
           {/* PROTOTYPE / BALLOON POP REVEAL STAGE */}
           {(stage === 'prototype' || stage === 'reveal') && (

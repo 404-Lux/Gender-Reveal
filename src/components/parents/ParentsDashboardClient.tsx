@@ -37,6 +37,7 @@ import {
   RollingNumber,
 } from '@/components/shared/MotionPrimitives';
 import { CreatorBrandSignature } from '@/components/shared/CreatorBrandSignature';
+import { InAppBrowserGuard } from '@/components/shared/InAppBrowserGuard';
 import { exportMemoryBookPdf } from '@/lib/memoryBookPdf';
 import {
   AdviceEntry,
@@ -448,6 +449,8 @@ export function ParentsDashboardClient({
           </TactileButton>
         </div>
       </div>
+
+      <InAppBrowserGuard context="general" />
 
       {/* Sticky Segmented Studio Navigation */}
       <div className="sticky top-3 z-30 flex justify-center py-1">

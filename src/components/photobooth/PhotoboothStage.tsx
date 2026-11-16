@@ -10,7 +10,6 @@ import {
   ShareNetwork,
   Sparkle,
   ArrowsClockwise,
-  Browser,
   Rows,
   Square,
   Prohibit,
@@ -25,6 +24,10 @@ import {
   CREATOR_PORTFOLIO_URL,
   CREATOR_PORTFOLIO_DISPLAY,
 } from '@/components/shared/CreatorBrandSignature';
+import {
+  detectInAppBrowser,
+  InAppBrowserGuard,
+} from '@/components/shared/InAppBrowserGuard';
 
 export type BoothMode = 'single' | 'strip4';
 export type StickerKind = 'none' | 'crown' | 'bow' | 'stars' | 'seal' | 'balloon';
@@ -238,18 +241,6 @@ export interface PhotoboothStageProps {
   babySurname?: string;
   isMockMode?: boolean;
   onChangePreviewGender?: (g: RevealGender) => void;
-}
-
-/**
- * Detects Messenger, Facebook, Viber, or Instagram in-app WebViews
- */
-function detectInAppBrowser(): string | null {
-  if (typeof navigator === 'undefined') return null;
-  const ua = navigator.userAgent || '';
-  if (/FBAN|FBAV|Messenger/i.test(ua)) return 'Messenger / Facebook';
-  if (/Viber/i.test(ua)) return 'Viber';
-  if (/Instagram/i.test(ua)) return 'Instagram';
-  return null;
 }
 
 export function PhotoboothStage({
@@ -896,23 +887,8 @@ export function PhotoboothStage({
         )}
       </div>
 
-      {/* In-App Browser Camera Guard (Messenger / Viber / Facebook) */}
-      {inAppBrowserName && (
-        <div className="paper-card-surface rounded-2xl border-l-4 border-l-[var(--accent-primary)] p-4">
-          <div className="flex items-start gap-3">
-            <Browser size={22} weight="light" className="mt-0.5 text-[var(--accent-primary)] shrink-0" />
-            <div className="space-y-1 text-xs sm:text-sm">
-              <p className="font-medium text-[var(--text-primary)]">
-                Opened inside {inAppBrowserName}
-              </p>
-              <p className="text-[var(--text-secondary)]">
-                Chat apps sometimes block live camera access. Tap the menu in the top corner and choose{' '}
-                <strong className="text-[var(--text-primary)]">Open in Chrome / Safari</strong> to use the live camera.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* In-App Browser Camera & Download Guard (Messenger / Instagram / Viber) */}
+      <InAppBrowserGuard context="photobooth" />
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
         {/* Left Column: Live Camera & Controls */}
@@ -1243,6 +1219,13 @@ export function PhotoboothStage({
             {!hasCapturedPhotos && (
               <p className="mt-3 text-center text-xs text-[var(--text-secondary)]">
                 Take a photo first to unlock Download &amp; Share.
+              </p>
+            )}
+
+            {inAppBrowserName && hasCapturedPhotos && (
+              <p className="mt-3 text-center text-[11px] leading-relaxed text-[var(--text-secondary)]">
+                Using <strong className="text-[var(--text-primary)]">{inAppBrowserName}</strong>? If the download button is blocked,{' '}
+                <strong className="text-[var(--text-primary)]">press and hold the photo above</strong> to save it, or open this page in Chrome / Safari.
               </p>
             )}
 
