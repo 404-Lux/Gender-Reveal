@@ -55,3 +55,34 @@ This guide walks through setting up the Google Sheets database and connecting th
 2. **Protect Staging/Preview Deployments**: In Vercel → **Settings → Deployment Protection**, set **Vercel Authentication** to **Only Preview Deployments** (or **Standard Protection**) so your staging preview links are not publicly guessable, and delete any old preview deployments that had `NEXT_PUBLIC_MOCK=true`.
 3. Redeploy your Vercel project.
 4. Share `/parents/[PARENTS_SLUG]` privately with the couple (or their doctor/trusted keeper of the envelope) to set the PHT reveal time and lock in the gender.
+
+---
+
+## Updating Apps Script Without Breaking the Live URL
+
+Whenever you edit `Code.gs`, **do NOT create a New Deployment** (which generates a brand new URL and breaks Vercel until you update env vars):
+
+1. Open Apps Script -> **Deploy** -> **Manage deployments**.
+2. Click the **pencil (Edit)** icon on the active Web App deployment.
+3. Under **Version**, choose **New version**.
+4. Click **Deploy**. The existing `APPS_SCRIPT_URL` stays identical.
+
+---
+
+## Automatic Hourly Google Sheet Backups
+
+1. In the Apps Script editor, open **Triggers** (clock icon on the left sidebar).
+2. Click **+ Add Trigger**:
+   - **Choose which function to run**: `backupSnapshot`
+   - **Select event source**: **Time-driven**
+   - **Select type of time based trigger**: **Hour timer** -> **Every hour**
+3. Save and authorize Drive access. Hourly snapshots are saved in Google Drive under `Paper & Light Backups` (latest 24 kept automatically).
+
+---
+
+## Vercel Preview / Staging Deployment Protection
+
+To ensure staging/preview URLs are never publicly guessable or indexed:
+
+1. In **Vercel Dashboard -> Project Settings -> Deployment Protection**, enable **Vercel Authentication** (Standard Protection) for **Preview Deployments** while keeping **Production** public for guests.
+2. Delete any stale Preview deployments that were created before `NEXT_PUBLIC_MOCK=false` was enforced.

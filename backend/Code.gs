@@ -607,6 +607,7 @@ function doPost(e) {
           var nextTime = cleanText(body.revealTime, 40) || nowIso;
           settingsSheet.getRange(2, 1).setValue(nextTime);
           invalidateStateCache();
+          appendAuditLog_(ss, action, nextTime);
           return jsonResponse({ ok: true, revealTime: nextTime });
         }
 
@@ -625,6 +626,7 @@ function doPost(e) {
           }
           targetSheet.getRange(rowIdx, colNum).setValue(nextHidden);
           invalidateStateCache();
+          appendAuditLog_(ss, action, tab + ':' + rowIdx + '=' + nextHidden);
           return jsonResponse({ ok: true, hidden: nextHidden });
         }
 
@@ -638,6 +640,7 @@ function doPost(e) {
           settingsSheet.getRange(2, 2).setValue('');
           settingsSheet.getRange(2, 3).setValue(false);
           invalidateStateCache();
+          appendAuditLog_(ss, action, 'unlocked');
           return jsonResponse({ ok: true, locked: false });
         }
 
@@ -659,6 +662,7 @@ function doPost(e) {
           settingsSheet.getRange(2, 2).setValue(chosenGender);
           settingsSheet.getRange(2, 3).setValue(true);
           invalidateStateCache();
+          appendAuditLog_(ss, action, 'locked');
           return jsonResponse({ ok: true, locked: true });
         }
       } finally {
@@ -666,8 +670,80 @@ function doPost(e) {
       }
     }
 
+    if (action === 'health') {
+      var settingsHealth = readSettingsRow(ss);
+      return jsonResponse({
+        ok: true,
+        serverTime: new Date().toISOString(),
+        locked: settingsHealth.locked,
+        tabsOk: Boolean(
+          ss.getSheetByName('settings') &&
+            ss.getSheetByName('guesses') &&
+            ss.getSheetByName('wishes') &&
+            ss.getSheetByName('names')
+        ),
+      });
+    }
+
     return jsonResponse({ error: 'Unknown POST action' });
   } catch (err) {
     return jsonResponse({ error: String(err) });
+  }
+}
+
+/**
+ * Writes a lightweight audit record into a hidden `logs` tab, capped at 500 rows.
+ */
+function appendAuditLog_(ss, action, detail) {
+  try {
+    var sheet = ss.getSheetByName('logs');
+    if (!sheet) {
+      sheet = ss.insertSheet('logs');
+      sheet.hideSheet();
+      sheet.appendRow(['timestamp', 'action', 'detail']);
+    }
+    sheet.appendRow([new Date().toISOString(), String(action), String(detail || '')]);
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 501) {
+      sheet.deleteRows(2, lastRow - 501);
+    }
+  } catch (e) {
+    // Never fail a parent action if audit logging fails
+  }
+}
+
+/**
+ * Hourly time-driven trigger target: saves a dated spreadsheet snapshot into
+ * Google Drive -> "Paper & Light Backups" and keeps the latest 24 snapshots.
+ */
+function backupSnapshot() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var folderName = 'Paper & Light Backups';
+  var folders = DriveApp.getFoldersByName(folderName);
+  var folder = folders.hasNext()
+    ? folders.next()
+    : DriveApp.createFolder(folderName);
+
+  var stamp = Utilities.formatDate(
+    new Date(),
+    'Asia/Manila',
+    'yyyy-MM-dd_HHmm'
+  );
+  var copyName = ss.getName() + ' - Backup ' + stamp;
+  DriveApp.getFileById(ss.getId()).makeCopy(copyName, folder);
+
+  // Keep only the 24 most recent backups
+  var files = [];
+  var iter = folder.getFiles();
+  while (iter.hasNext()) {
+    files.push(iter.next());
+  }
+  if (files.length > 24) {
+    files.sort(function (a, b) {
+      return b.getDateCreated().getTime() - a.getDateCreated().getTime();
+    });
+    for (var i = 24; i < files.length; i++) {
+      files[i].setTrashed(true);
+    }
   }
 }
