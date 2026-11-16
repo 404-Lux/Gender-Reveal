@@ -68,8 +68,8 @@ function ensureSheetsStructure() {
 
   var schema = {
     settings: ['reveal_time', 'gender', 'locked'],
-    guesses: ['name', 'guess', 'timestamp'],
-    wishes: ['name', 'wish_for_baby', 'note_for_parents', 'timestamp'],
+    guesses: ['name', 'side', 'relationship', 'guess', 'timestamp'],
+    wishes: ['name', 'guess', 'wish_for_baby', 'note_for_parents', 'timestamp'],
     names: ['guest', 'suggested_name', 'timestamp'],
     advice: ['guest', 'advice', 'timestamp'],
   };
@@ -140,9 +140,16 @@ function buildPublicState(ss) {
 
     var boyCount = 0;
     var girlCount = 0;
+    var motherCount = 0;
+    var fatherCount = 0;
+    var bothCount = 0;
     guesses.forEach(function (g) {
       if (g.guess === 'boy') boyCount++;
       if (g.guess === 'girl') girlCount++;
+      var s = String(g.side || 'both').toLowerCase();
+      if (s === 'mother') motherCount++;
+      else if (s === 'father') fatherCount++;
+      else bothCount++;
     });
 
     baseData = {
@@ -151,6 +158,12 @@ function buildPublicState(ss) {
         boy: boyCount,
         girl: girlCount,
         total: boyCount + girlCount,
+      },
+      sideCounts: {
+        all: guesses.length,
+        mother: motherCount,
+        father: fatherCount,
+        both: bothCount,
       },
       guesses: guesses.slice(-40),
       names: names.slice(-25).reverse(),
@@ -176,8 +189,14 @@ function buildPublicState(ss) {
     revealed: isRevealed,
     locked: baseData.settings.locked,
     tally: baseData.tally,
+    sideCounts: baseData.sideCounts,
     guestWall: baseData.guesses.map(function (g) {
-      var item = { name: g.name, timestamp: g.timestamp };
+      var item = {
+        name: g.name,
+        side: g.side || 'both',
+        relationship: g.relationship || '',
+        timestamp: g.timestamp,
+      };
       if (isRevealed) item.guess = g.guess;
       return item;
     }),
@@ -193,7 +212,7 @@ function buildPublicState(ss) {
         return g.guess === baseData.settings.gender;
       })
       .map(function (g) {
-        return g.name;
+        return g.relationship ? g.name + ' · ' + g.relationship : g.name;
       });
   }
 
@@ -301,18 +320,34 @@ function doPost(e) {
     // Guest Actions
     if (action === 'submitGuess') {
       var name = cleanText(body.name, 60);
+      var rawSide = String(body.side || 'both').toLowerCase();
+      var side =
+        rawSide === 'mother'
+          ? 'mother'
+          : rawSide === 'father'
+          ? 'father'
+          : 'both';
+      var relationship = cleanText(body.relationship, 50);
       var guess = body.guess === 'boy' ? 'boy' : 'girl';
       if (!name) return jsonResponse({ error: 'Name required' });
       if (!checkGuestRateLimit('guess_' + name)) {
         return jsonResponse({ error: 'Rate limit exceeded' });
       }
-      ss.getSheetByName('guesses').appendRow([name, guess, nowIso]);
+      ss.getSheetByName('guesses').appendRow([
+        name,
+        side,
+        relationship,
+        guess,
+        nowIso,
+      ]);
       invalidateStateCache();
       return jsonResponse({ ok: true });
     }
 
     if (action === 'submitWish') {
-      var wName = cleanText(body.name, 60) || 'Guest';
+      var wName = cleanText(body.name, 80) || 'Guest';
+      var wGuess =
+        body.guess === 'boy' || body.guess === 'girl' ? body.guess : '';
       var wishForBaby = cleanText(body.wish_for_baby, 600);
       var noteForParents = cleanText(body.note_for_parents, 600);
       if (!wishForBaby) return jsonResponse({ error: 'Wish required' });
@@ -321,6 +356,7 @@ function doPost(e) {
       }
       ss.getSheetByName('wishes').appendRow([
         wName,
+        wGuess,
         wishForBaby,
         noteForParents,
         nowIso,

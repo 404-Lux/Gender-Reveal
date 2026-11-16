@@ -69,14 +69,21 @@ export async function POST(req: NextRequest) {
       }
 
       await callAppsScriptProxy('POST', 'submitGuess', {
-        name: relationship ? `${name} (${relationship} · ${side})` : `${name} (${side})`,
+        name,
+        side,
+        relationship,
         guess,
         timestamp,
       });
 
+      const remoteState = await callAppsScriptProxy<Record<string, unknown>>(
+        'GET',
+        'getState'
+      );
+
       return NextResponse.json({
         ok: true,
-        state: buildPublicStatePayload(),
+        state: remoteState || buildPublicStatePayload(),
       });
     }
 
@@ -110,9 +117,14 @@ export async function POST(req: NextRequest) {
         timestamp,
       });
 
+      const remoteState = await callAppsScriptProxy<Record<string, unknown>>(
+        'GET',
+        'getState'
+      );
+
       return NextResponse.json({
         ok: true,
-        state: buildPublicStatePayload(),
+        state: remoteState || buildPublicStatePayload(),
       });
     }
 
@@ -139,9 +151,14 @@ export async function POST(req: NextRequest) {
         timestamp,
       });
 
+      const remoteState = await callAppsScriptProxy<Record<string, unknown>>(
+        'GET',
+        'getState'
+      );
+
       return NextResponse.json({
         ok: true,
-        state: buildPublicStatePayload(),
+        state: remoteState || buildPublicStatePayload(),
       });
     }
 

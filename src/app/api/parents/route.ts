@@ -91,10 +91,15 @@ export async function POST(req: NextRequest) {
 
       store.settings.reveal_time = revealTime;
       await callAppsScriptProxy('POST', 'setRevealTime', { slug, revealTime });
+      const remote = await callAppsScriptProxy<Record<string, unknown>>(
+        'GET',
+        'getParentsData',
+        { slug }
+      );
 
       return NextResponse.json({
         ok: true,
-        data: buildParentsResponsePayload(),
+        data: remote && remote.revealTime ? remote : buildParentsResponsePayload(),
       });
     }
 
@@ -103,25 +108,19 @@ export async function POST(req: NextRequest) {
       const nowIso = getNowPHTIso(Date.now() - 2000);
       store.settings.reveal_time = nowIso;
       await callAppsScriptProxy('POST', 'revealNow', { slug, revealTime: nowIso });
+      const remote = await callAppsScriptProxy<Record<string, unknown>>(
+        'GET',
+        'getParentsData',
+        { slug }
+      );
 
       return NextResponse.json({
         ok: true,
-        data: buildParentsResponsePayload(),
+        data: remote && remote.revealTime ? remote : buildParentsResponsePayload(),
       });
     }
 
     if (action === 'setGender') {
-      // CRITICAL: Server-side lock — once locked, reject any change
-      if (store.settings.locked) {
-        return NextResponse.json(
-          {
-            error:
-              'Gender is already locked on the server and cannot be changed.',
-          },
-          { status: 409 }
-        );
-      }
-
       const chosen: RevealGender | null =
         body.gender === 'boy' ? 'boy' : body.gender === 'girl' ? 'girl' : null;
       if (!chosen) {
@@ -131,17 +130,45 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      store.settings.gender = chosen;
-      store.settings.locked = true;
-
-      await callAppsScriptProxy('POST', 'setGender', {
+      const remotePost = await callAppsScriptProxy<{
+        ok?: boolean;
+        error?: string;
+      }>('POST', 'setGender', {
         slug,
         gender: chosen,
       });
 
+      if (remotePost?.error) {
+        return NextResponse.json(
+          { error: remotePost.error },
+          { status: 409 }
+        );
+      }
+
+      if (!remotePost) {
+        // Fallback local lock when Apps Script is not configured
+        if (store.settings.locked) {
+          return NextResponse.json(
+            {
+              error:
+                'Gender is already locked on the server and cannot be changed.',
+            },
+            { status: 409 }
+          );
+        }
+        store.settings.gender = chosen;
+        store.settings.locked = true;
+      }
+
+      const remote = await callAppsScriptProxy<Record<string, unknown>>(
+        'GET',
+        'getParentsData',
+        { slug }
+      );
+
       return NextResponse.json({
         ok: true,
-        data: buildParentsResponsePayload(),
+        data: remote && remote.revealTime ? remote : buildParentsResponsePayload(),
       });
     }
 
