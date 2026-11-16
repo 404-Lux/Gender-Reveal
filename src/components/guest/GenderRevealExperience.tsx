@@ -435,13 +435,26 @@ export function GenderRevealExperience({
   };
 
   const handleNameSuggestionSubmit = async (suggestedName: string) => {
+    const cleanGuest = guestName || 'Family Guest';
+    const optimisticEntry = {
+      guest: cleanGuest,
+      suggested_name: suggestedName,
+      timestamp: getNowPHTIso(),
+    };
+
+    // Optimistically show the name right away so slow mobile/Apps Script responses feel instant
+    setServerState((prev) => ({
+      ...prev,
+      names: [optimisticEntry, ...prev.names],
+    }));
+
     try {
       const res = await fetch('/api/guest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'submitName',
-          guest: guestName || 'Family Guest',
+          guest: cleanGuest,
           suggested_name: suggestedName,
         }),
       });
@@ -450,11 +463,7 @@ export function GenderRevealExperience({
       if (json.state) setServerState(json.state);
     } catch {
       const store = getServerStore();
-      store.names.push({
-        guest: guestName || 'Family Guest',
-        suggested_name: suggestedName,
-        timestamp: getNowPHTIso(),
-      });
+      store.names.push(optimisticEntry);
       saveClientStore();
       setServerState(buildPublicStatePayload() as unknown as PolledPublicState);
     }
@@ -491,58 +500,60 @@ export function GenderRevealExperience({
 
   return (
     <div className="min-h-dvh flex flex-col justify-between">
-      {/* Single Clean, Centered Top Navigation Bar */}
-      <header className="mx-auto w-full max-w-3xl px-4 pt-5 pb-2">
-        <nav
-          aria-label="Celebration Steps"
-          className="flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)]/90 px-3 py-1.5 shadow-2xs"
-        >
-          {(
-            [
-              { id: 'welcome', label: 'Cover' },
-              { id: 'guess', label: 'Guess' },
-              { id: 'wishes', label: 'Wishes' },
-              { id: 'waiting', label: 'Waiting Room' },
-              { id: 'reveal', label: 'Balloon Pop' },
-              { id: 'result', label: 'Result' },
-              { id: 'photobooth', label: 'Photobooth' },
-            ] as const
-          ).map((stepItem) => {
-            const isActive =
-              stage === stepItem.id ||
-              (stage === 'prototype' && stepItem.id === 'reveal');
-            const isPostRevealStep =
-              stepItem.id === 'reveal' ||
-              stepItem.id === 'result' ||
-              stepItem.id === 'photobooth';
-            const isLockedBeforeReveal =
-              !isMockMode && !serverState.revealed && isPostRevealStep;
+      {/* Prototype / Dev Step Navigation Bar (Hidden in Final Production Mode) */}
+      {isMockMode && (
+        <header className="mx-auto w-full max-w-3xl px-4 pt-5 pb-2">
+          <nav
+            aria-label="Celebration Steps"
+            className="flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)]/90 px-3 py-1.5 shadow-2xs"
+          >
+            {(
+              [
+                { id: 'welcome', label: 'Cover' },
+                { id: 'guess', label: 'Guess' },
+                { id: 'wishes', label: 'Wishes' },
+                { id: 'waiting', label: 'Waiting Room' },
+                { id: 'reveal', label: 'Balloon Pop' },
+                { id: 'result', label: 'Result' },
+                { id: 'photobooth', label: 'Photobooth' },
+              ] as const
+            ).map((stepItem) => {
+              const isActive =
+                stage === stepItem.id ||
+                (stage === 'prototype' && stepItem.id === 'reveal');
+              const isPostRevealStep =
+                stepItem.id === 'reveal' ||
+                stepItem.id === 'result' ||
+                stepItem.id === 'photobooth';
+              const isLockedBeforeReveal =
+                !isMockMode && !serverState.revealed && isPostRevealStep;
 
-            return (
-              <button
-                key={stepItem.id}
-                type="button"
-                disabled={isLockedBeforeReveal}
-                title={
-                  isLockedBeforeReveal
-                    ? 'Unlocks automatically at reveal time'
-                    : undefined
-                }
-                onClick={() => handleStageChange(stepItem.id)}
-                className={`min-h-[34px] rounded-full px-3.5 py-1 text-xs font-medium transition ${
-                  isActive
-                    ? 'bg-[var(--accent-primary)] text-[var(--linen)] shadow-2xs'
-                    : isLockedBeforeReveal
-                    ? 'cursor-not-allowed text-[var(--text-secondary)]/45'
-                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                }`}
-              >
-                {stepItem.label}
-              </button>
-            );
-          })}
-        </nav>
-      </header>
+              return (
+                <button
+                  key={stepItem.id}
+                  type="button"
+                  disabled={isLockedBeforeReveal}
+                  title={
+                    isLockedBeforeReveal
+                      ? 'Unlocks automatically at reveal time'
+                      : undefined
+                  }
+                  onClick={() => handleStageChange(stepItem.id)}
+                  className={`min-h-[34px] rounded-full px-3.5 py-1 text-xs font-medium transition ${
+                    isActive
+                      ? 'bg-[var(--accent-primary)] text-[var(--linen)] shadow-2xs'
+                      : isLockedBeforeReveal
+                      ? 'cursor-not-allowed text-[var(--text-secondary)]/45'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  {stepItem.label}
+                </button>
+              );
+            })}
+          </nav>
+        </header>
+      )}
 
       {/* Main Centered Stage Container */}
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-4 sm:px-6 sm:py-6 space-y-4">

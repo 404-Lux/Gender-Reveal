@@ -13,8 +13,11 @@ import {
   X,
   CalendarBlank,
   Clock,
+  SpeakerHigh,
+  SpeakerSlash,
 } from '@phosphor-icons/react';
 import { BALLOON_NEUTRAL_PALETTE, EASINGS } from '@/lib/tokens';
+import { soundManager, triggerHaptic } from '@/lib/sound';
 import {
   CountdownBreakdown,
   createGoogleCalendarUrl,
@@ -55,6 +58,22 @@ export function WelcomeStage({
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [isMuted, setIsMuted] = useState(soundManager.getMuted());
+
+  useEffect(() => {
+    setIsMuted(soundManager.getMuted());
+    return soundManager.subscribe((m) => setIsMuted(m));
+  }, []);
+
+  const handleToggleMusic = () => {
+    triggerHaptic(14);
+    const nextMuted = soundManager.toggleMute();
+    if (!nextMuted) {
+      soundManager.startLullaby();
+    } else {
+      soundManager.stopLullaby();
+    }
+  };
 
   const friendlyPhtDate = formatPhilippineTime(revealTimeIso, true);
   const dateParts = getPhilippineDateParts(revealTimeIso);
@@ -106,6 +125,28 @@ export function WelcomeStage({
       className="mx-auto w-full max-w-2xl py-2 sm:py-6"
     >
       <div className="paper-card-surface relative mx-auto flex flex-col items-center overflow-hidden rounded-[32px] px-5 py-9 sm:px-12 sm:py-12 text-center space-y-6">
+        {/* Top-Right Music Toggle Pill */}
+        <div className="flex w-full items-center justify-end -mt-2">
+          <button
+            type="button"
+            onClick={handleToggleMusic}
+            aria-label={isMuted ? 'Unmute celebration music' : 'Mute celebration music'}
+            className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-primary)]/70 px-3 py-1 text-[11px] font-medium text-[var(--text-primary)] transition hover:border-[var(--accent-primary)]"
+          >
+            {isMuted ? (
+              <>
+                <SpeakerSlash size={14} weight="light" />
+                <span>Unmute Music</span>
+              </>
+            ) : (
+              <>
+                <SpeakerHigh size={14} weight="light" className="text-[var(--accent-primary)]" />
+                <span>Music On</span>
+              </>
+            )}
+          </button>
+        </div>
+
         {/* Centered Hero Paper Balloon Trio (With Living Waving Tails) */}
         <div className="flex items-end justify-center gap-3">
           <motion.div

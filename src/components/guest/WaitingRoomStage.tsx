@@ -30,6 +30,7 @@ export interface GuestWallItem {
   name: string;
   relationship?: string;
   side?: FamilySide;
+  guess?: 'boy' | 'girl';
   timestamp: string;
 }
 
@@ -404,15 +405,39 @@ export function WaitingRoomStage({
                     key={`${g.name}-${idx}`}
                     className="flex items-center justify-between gap-2 rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/60 px-3.5 py-2.5 text-left"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--accent-primary)]" />
-                      <span className="font-display-editorial text-sm sm:text-base font-medium text-[var(--text-primary)] leading-snug">
-                        {g.name}
-                      </span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{
+                          backgroundColor:
+                            g.guess === 'boy'
+                              ? '#66745E'
+                              : g.guess === 'girl'
+                              ? '#C98A62'
+                              : 'var(--accent-primary)',
+                        }}
+                      />
+                      <div className="min-w-0">
+                        <span className="block font-display-editorial text-sm sm:text-base font-medium text-[var(--text-primary)] leading-snug">
+                          {g.name}
+                        </span>
+                        {g.relationship && (
+                          <span className="block text-[10px] text-[var(--text-secondary)]">
+                            {g.relationship}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {g.relationship && (
-                      <span className="shrink-0 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
-                        {g.relationship}
+
+                    {g.guess && (
+                      <span
+                        className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+                          g.guess === 'boy'
+                            ? 'bg-[#66745E]/15 text-[#495742]'
+                            : 'bg-[#C98A62]/18 text-[#9E603B]'
+                        }`}
+                      >
+                        Team {g.guess === 'boy' ? 'Boy' : 'Girl'}
                       </span>
                     )}
                   </div>
@@ -448,10 +473,26 @@ export function WaitingRoomStage({
                 variant="primary"
                 disabled={submittingName || suggestedName.trim().length < 2}
               >
-                <PaperPlaneTilt size={16} weight="light" />
-                <span>Suggest Name</span>
+                {submittingName ? (
+                  <>
+                    <ArrowsClockwise size={16} weight="light" className="animate-spin" />
+                    <span>Saving Name...</span>
+                  </>
+                ) : (
+                  <>
+                    <PaperPlaneTilt size={16} weight="light" />
+                    <span>Suggest Name</span>
+                  </>
+                )}
               </TactileButton>
             </form>
+
+            {submittingName && (
+              <p className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-[var(--text-secondary)]">
+                <ArrowsClockwise size={13} weight="light" className="animate-spin text-[var(--accent-primary)]" />
+                <span>Adding your baby name idea to the jar...</span>
+              </p>
+            )}
 
             {nameSaved && (
               <p className="text-xs font-medium text-[var(--accent-primary)]">

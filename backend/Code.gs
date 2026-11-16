@@ -191,14 +191,13 @@ function buildPublicState(ss) {
     tally: baseData.tally,
     sideCounts: baseData.sideCounts,
     guestWall: baseData.guesses.map(function (g) {
-      var item = {
+      return {
         name: g.name,
         side: g.side || 'both',
         relationship: g.relationship || '',
+        guess: g.guess,
         timestamp: g.timestamp,
       };
-      if (isRevealed) item.guess = g.guess;
-      return item;
     }),
     names: baseData.names,
     advice: baseData.advice,

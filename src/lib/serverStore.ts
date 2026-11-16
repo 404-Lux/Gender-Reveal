@@ -275,8 +275,8 @@ export function buildPublicStatePayload() {
       name: g.name,
       relationship: g.relationship || '',
       side: g.side || 'both',
+      guess: g.guess,
       timestamp: g.timestamp,
-      ...(revealed ? { guess: g.guess } : {}),
     })),
     names: store.names.slice(-20),
   };
