@@ -39,8 +39,8 @@ function verifyProxyToken(token) {
 
 function verifyParentsSlug(slug) {
   var props = PropertiesService.getScriptProperties();
-  var expected = props.getProperty('PARENTS_SECRET_SLUG') || '';
-  if (!expected) return false;
+  var expected = props.getProperty('PARENTS_SLUG') || props.getProperty('PARENTS_SECRET_SLUG') || '';
+  if (!expected || expected.length < 24) return false;
   return slug === expected;
 }
 
@@ -483,6 +483,12 @@ function markIdempotencyKey(key) {
         }
 
         if (action === 'resetGenderLock') {
+          var currentRevealMs = new Date(current.reveal_time).getTime();
+          if (!isNaN(currentRevealMs) && new Date().getTime() >= currentRevealMs) {
+            return jsonResponse({
+              error: 'Cannot change gender after the reveal time has arrived.',
+            });
+          }
           settingsSheet.getRange(2, 2).setValue('');
           settingsSheet.getRange(2, 3).setValue(false);
           invalidateStateCache();

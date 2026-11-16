@@ -114,6 +114,9 @@ export function ParentsDashboardClient({
 
   const [savingTime, setSavingTime] = useState(false);
   const [timeFeedback, setTimeFeedback] = useState<string | null>(null);
+  const [scheduleConfirmOpen, setScheduleConfirmOpen] = useState(false);
+  const [holdProgress, setHoldProgress] = useState(0);
+  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [isMuted, setIsMuted] = useState(soundManager.getMuted());
 
   useEffect(() => {
@@ -258,8 +261,50 @@ export function ParentsDashboardClient({
     }
   };
 
-  const handleSaveRevealTime = async (e: React.FormEvent) => {
+  const formatRelativePht = (isoStr: string) => {
+    const targetMs = new Date(isoStr).getTime();
+    const diffMs = targetMs - Date.now();
+    if (diffMs <= 0) {
+      const minsAgo = Math.max(1, Math.round(Math.abs(diffMs) / 60000));
+      return {
+        label: `${minsAgo} minute${minsAgo === 1 ? '' : 's'} in the past`,
+        isPast: true,
+        isTooSoon: true,
+      };
+    }
+    const totalMins = Math.round(diffMs / 60000);
+    const isTooSoon = totalMins < 5;
+    if (totalMins < 60) {
+      return {
+        label: `in ${totalMins} minute${totalMins === 1 ? '' : 's'}`,
+        isPast: false,
+        isTooSoon,
+      };
+    }
+    const totalHours = Math.round(totalMins / 60);
+    if (totalHours < 48) {
+      return {
+        label: `in ${totalHours} hour${totalHours === 1 ? '' : 's'}`,
+        isPast: false,
+        isTooSoon: false,
+      };
+    }
+    const totalDays = Math.round(totalHours / 24);
+    return {
+      label: `in ${totalDays} day${totalDays === 1 ? '' : 's'}`,
+      isPast: false,
+      isTooSoon: false,
+    };
+  };
+
+  const handleRequestSaveSchedule = (e: React.FormEvent) => {
     e.preventDefault();
+    triggerHaptic(12);
+    setScheduleConfirmOpen(true);
+  };
+
+  const handleConfirmSaveRevealTime = async () => {
+    setScheduleConfirmOpen(false);
     setSavingTime(true);
     setTimeFeedback(null);
 
@@ -290,6 +335,34 @@ export function ParentsDashboardClient({
     } finally {
       setSavingTime(false);
     }
+  };
+
+  const startHoldRevealNow = () => {
+    if (savingTime) return;
+    if (holdTimerRef.current) clearInterval(holdTimerRef.current);
+    const startMs = Date.now();
+    const durationMs = 1500;
+    triggerHaptic(10);
+
+    holdTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startMs;
+      const pct = Math.min(100, Math.round((elapsed / durationMs) * 100));
+      setHoldProgress(pct);
+      if (pct >= 100) {
+        if (holdTimerRef.current) clearInterval(holdTimerRef.current);
+        holdTimerRef.current = null;
+        setHoldProgress(0);
+        handleRevealNowOverride();
+      }
+    }, 30);
+  };
+
+  const cancelHoldRevealNow = () => {
+    if (holdTimerRef.current) {
+      clearInterval(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    setHoldProgress(0);
   };
 
   const handleRevealNowOverride = async () => {
@@ -590,7 +663,7 @@ export function ParentsDashboardClient({
               </div>
             </div>
 
-            <form onSubmit={handleSaveRevealTime} className="space-y-4">
+            <form onSubmit={handleRequestSaveSchedule} className="space-y-4">
               {/* Engraved Live Invitation Preview Plaque */}
               <div className="relative overflow-hidden rounded-2xl border border-dashed border-[var(--accent-primary)]/45 bg-[var(--bg-primary)]/65 p-4">
                 <PaperStarSvg
@@ -838,15 +911,27 @@ export function ParentsDashboardClient({
                   <span>{savingTime ? 'Saving...' : 'Save Schedule'}</span>
                 </TactileButton>
 
-                <TactileButton
+                <button
                   type="button"
-                  variant="secondary"
                   disabled={savingTime}
-                  onClick={handleRevealNowOverride}
+                  onPointerDown={startHoldRevealNow}
+                  onPointerUp={cancelHoldRevealNow}
+                  onPointerLeave={cancelHoldRevealNow}
+                  onPointerCancel={cancelHoldRevealNow}
+                  className="relative inline-flex min-h-[48px] select-none items-center justify-center gap-2 overflow-hidden rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-5 py-3 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent-primary)] disabled:opacity-50"
                 >
-                  <Lightning size={16} weight="light" />
-                  <span>Reveal Now Override</span>
-                </TactileButton>
+                  <span
+                    aria-hidden="true"
+                    style={{ width: `${holdProgress}%` }}
+                    className="pointer-events-none absolute inset-y-0 left-0 bg-[var(--accent-primary)]/25 transition-none"
+                  />
+                  <Lightning size={16} weight="light" className="relative z-10" />
+                  <span className="relative z-10">
+                    {holdProgress > 0
+                      ? 'Keep Holding...'
+                      : 'Hold 1.5s: Reveal Now'}
+                  </span>
+                </button>
               </div>
             </form>
           </section>
@@ -887,14 +972,21 @@ export function ParentsDashboardClient({
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    disabled={lockingGender}
-                    onClick={handleResetGenderLock}
-                    className="mt-2 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-4 py-1.5 text-[11px] font-medium text-[var(--text-primary)] transition hover:border-[var(--accent-primary)] disabled:opacity-50"
-                  >
-                    {lockingGender ? 'Unlocking...' : 'Change Gender Selection'}
-                  </button>
+                  {!data.revealed &&
+                  Date.now() < new Date(data.revealTime).getTime() ? (
+                    <button
+                      type="button"
+                      disabled={lockingGender}
+                      onClick={handleResetGenderLock}
+                      className="mt-2 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-4 py-1.5 text-[11px] font-medium text-[var(--text-primary)] transition hover:border-[var(--accent-primary)] disabled:opacity-50"
+                    >
+                      {lockingGender ? 'Unlocking...' : 'Change Gender Selection'}
+                    </button>
+                  ) : (
+                    <span className="mt-1 text-[11px] text-[var(--text-secondary)]">
+                      Selection is permanently locked once reveal time arrives.
+                    </span>
+                  )}
                 </div>
               ) : (
                 /* UNLOCKED STATE: Two Illustrated Options -> Confirm Step ("This will be final") */
@@ -1166,6 +1258,65 @@ export function ParentsDashboardClient({
           )}
         </motion.section>
       )}
+
+      {/* Save Schedule Confirmation Modal */}
+      <AnimatePresence>
+        {scheduleConfirmOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xs"
+            onClick={() => setScheduleConfirmOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 16, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.92, y: 16, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="paper-card-surface w-full max-w-md rounded-3xl p-7 text-center space-y-5"
+            >
+              <div className="space-y-2">
+                <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--accent-primary)]">
+                  Confirm Reveal Schedule
+                </span>
+                <h3 className="font-display-editorial text-2xl sm:text-3xl text-[var(--text-primary)]">
+                  {previewParts.weekday}, {previewParts.monthLong}{' '}
+                  {previewParts.dayNumber} · {previewParts.formattedTime} PHT
+                </h3>
+                <p className="text-sm font-medium text-[var(--text-secondary)]">
+                  Scheduled {formatRelativePht(previewIso).label}
+                </p>
+
+                {(formatRelativePht(previewIso).isPast ||
+                  formatRelativePht(previewIso).isTooSoon) && (
+                  <div className="mt-2 rounded-2xl border border-[var(--accent-primary)] bg-[var(--accent-primary)]/12 p-3 text-xs font-semibold text-[var(--text-primary)]">
+                    {formatRelativePht(previewIso).isPast
+                      ? 'WARNING: This time is in the PAST! Saving it will immediately trigger the reveal for all guests.'
+                      : 'WARNING: This time is less than 5 minutes away. Make sure guests are ready before saving.'}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-center gap-3 pt-1">
+                <TactileButton
+                  variant="secondary"
+                  onClick={() => setScheduleConfirmOpen(false)}
+                >
+                  <span>Cancel</span>
+                </TactileButton>
+                <TactileButton
+                  variant="primary"
+                  onClick={handleConfirmSaveRevealTime}
+                >
+                  <Check size={16} weight="light" />
+                  <span>Confirm Schedule</span>
+                </TactileButton>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Confirm Gender Lock Modal ("Confirm & Lock" strictly on one line) */}
       <AnimatePresence>
