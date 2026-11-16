@@ -692,39 +692,62 @@ export function ParentsDashboardClient({
                 </div>
               </div>
 
-              {/* Paper Clock Dial Pickers: Hour, Minute, AM/PM */}
+              {/* Paper Clock Dial Pickers: Hour (1-12), Minute (00-59), AM/PM */}
               <div className="rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/40 p-4 space-y-3">
                 <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                   Select Reveal Time
                 </span>
 
-                {/* 1–12 Hours */}
-                <div className="grid grid-cols-6 sm:grid-cols-12 gap-1">
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((hr) => {
-                    const active = pickHour12 === hr;
-                    return (
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                  {/* Hour (1–12 Stepper & Direct Input) */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">
+                      Hour:
+                    </span>
+                    <div className="flex items-center gap-1">
                       <button
-                        key={hr}
                         type="button"
+                        aria-label="Decrease hour"
                         onClick={() => {
                           triggerHaptic(8);
-                          setPickHour12(hr);
+                          setPickHour12((h) => (h > 1 ? h - 1 : 12));
                         }}
-                        className={`rounded-lg border py-1.5 text-xs font-display-editorial font-semibold transition ${
-                          active
-                            ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)] text-[var(--linen)]'
-                            : 'border-[var(--border-hairline)] bg-[var(--bg-surface)] text-[var(--text-primary)]'
-                        }`}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] text-sm font-medium text-[var(--text-primary)] hover:border-[var(--accent-primary)]"
                       >
-                        {hr}
+                        -
                       </button>
-                    );
-                  })}
-                </div>
+                      <input
+                        type="number"
+                        min={1}
+                        max={12}
+                        aria-label="Reveal hour (1 to 12)"
+                        value={pickHour12}
+                        onChange={(e) => {
+                          const raw = parseInt(e.target.value, 10);
+                          if (isNaN(raw)) {
+                            setPickHour12(12);
+                          } else {
+                            setPickHour12(Math.max(1, Math.min(12, raw)));
+                          }
+                        }}
+                        className="h-8 w-12 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] text-center font-display-editorial text-lg font-semibold text-[var(--text-primary)] focus:border-[var(--accent-primary)] focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        aria-label="Increase hour"
+                        onClick={() => {
+                          triggerHaptic(8);
+                          setPickHour12((h) => (h < 12 ? h + 1 : 1));
+                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] text-sm font-medium text-[var(--text-primary)] hover:border-[var(--accent-primary)]"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
 
-                {/* Exact Minutes (00–59 Stepper & Direct Input + Quick Presets) & AM/PM */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                  <div className="flex flex-wrap items-center gap-2">
+                  {/* Exact Minutes (00–59 Stepper & Direct Input) */}
+                  <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-[var(--text-secondary)]">
                       Min:
                     </span>
@@ -768,28 +791,9 @@ export function ParentsDashboardClient({
                         +
                       </button>
                     </div>
-
-                    <div className="flex items-center gap-1">
-                      {MINUTE_PRESETS.map((min) => (
-                        <button
-                          key={min}
-                          type="button"
-                          onClick={() => {
-                            triggerHaptic(8);
-                            setPickMinute(min);
-                          }}
-                          className={`rounded-lg border px-2 py-1 text-[11px] font-medium transition ${
-                            pickMinute === min
-                              ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)] text-[var(--linen)]'
-                              : 'border-[var(--border-hairline)] bg-[var(--bg-surface)] text-[var(--text-secondary)]'
-                          }`}
-                        >
-                          :{String(min).padStart(2, '0')}
-                        </button>
-                      ))}
-                    </div>
                   </div>
 
+                  {/* AM / PM */}
                   <div className="inline-flex rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-0.5">
                     {(['AM', 'PM'] as const).map((p) => (
                       <button
