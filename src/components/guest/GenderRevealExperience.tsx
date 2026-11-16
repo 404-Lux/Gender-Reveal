@@ -413,6 +413,16 @@ export function GenderRevealExperience({
       setIsReconnecting(false);
       failCountRef.current = 0;
 
+      if (!isMockMode && !data.locked && stage === 'reveal') {
+        pendingPostRevealStageRef.current = null;
+        setStage('waiting');
+        try {
+          localStorage.setItem('pl_guest_stage', 'waiting');
+        } catch {
+          // Ignore
+        }
+      }
+
       if (data.revealed && data.gender) {
         if (pendingPostRevealStageRef.current) {
           const target = pendingPostRevealStageRef.current;
