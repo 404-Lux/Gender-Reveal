@@ -3,7 +3,24 @@ import { WishEntry, AdviceEntry, NameSuggestionEntry } from './serverStore';
 import { formatPhilippineTime } from './time';
 import { RevealGender } from './tokens';
 
-export function exportMemoryBookPdf(params: {
+/**
+ * Normalizes smart punctuation and strips unsupported Unicode/emoji glyphs that render as
+ * tofu boxes in jsPDF's built-in Times/Helvetica fonts, while preserving Filipino ñ/Ñ and Latin-1 accents.
+ */
+export function sanitizePdfText(input: string): string {
+  if (!input) return '';
+  return input
+    .replace(/[\u2018\u2019\u201A]/g, "'")
+    .replace(/[\u201C\u201D\u201E]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/\u00B7/g, '·')
+    .replace(/[^\u0020-\u00FF\n]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+export async function exportMemoryBookPdf(params: {
   babySurname: string;
   coupleNames: string;
   revealTimeIso: string;
@@ -12,6 +29,7 @@ export function exportMemoryBookPdf(params: {
   wishes: WishEntry[];
   names: NameSuggestionEntry[];
   advice?: AdviceEntry[];
+  onProgress?: (pct: number) => void;
 }) {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -169,7 +187,14 @@ export function exportMemoryBookPdf(params: {
   const textRightX = cardX + cardWidth - padX;
   const cardInnerWidth = cardWidth - padX * 2;
 
-  params.wishes.forEach((wish, index) => {
+  for (let index = 0; index < params.wishes.length; index++) {
+    const wish = params.wishes[index];
+    if (index > 0 && index % 8 === 0) {
+      params.onProgress?.(
+        Math.min(85, Math.round(((index + 1) / Math.max(1, params.wishes.length)) * 80))
+      );
+      await new Promise((r) => setTimeout(r, 0));
+    }
     const senderLineH = 15;
     const babyLineH = 15.5;
     const parentLineH = 13.5;
@@ -178,25 +203,30 @@ export function exportMemoryBookPdf(params: {
     doc.setFont('times', 'bold');
     doc.setFontSize(12);
     const maxSenderWidth = wish.guess ? cardInnerWidth - 118 : cardInnerWidth;
+    const cleanSender = sanitizePdfText(wish.name) || 'A Loving Guest';
     const senderLines: string[] = doc.splitTextToSize(
-      `${index + 1}. From ${wish.name}`,
+      `${index + 1}. From ${cleanSender}`,
       maxSenderWidth
     );
 
     // 2. Measure Baby Wish Quote with its exact font (times italic 11pt)
     doc.setFont('times', 'italic');
     doc.setFontSize(11);
+    const cleanBabyWish = sanitizePdfText(wish.wish_for_baby);
     const babyLines: string[] = doc.splitTextToSize(
-      `"${wish.wish_for_baby}"`,
+      `"${cleanBabyWish}"`,
       cardInnerWidth - 6
     );
 
     // 3. Measure Optional Parent Note with its exact font (helvetica normal 9.5pt)
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9.5);
-    const parentLines: string[] = wish.note_for_parents
+    const cleanParentNote = wish.note_for_parents
+      ? sanitizePdfText(wish.note_for_parents)
+      : '';
+    const parentLines: string[] = cleanParentNote
       ? doc.splitTextToSize(
-          `Personal Note for ${params.coupleNames}: ${wish.note_for_parents}`,
+          `Personal Note for ${sanitizePdfText(params.coupleNames)}: ${cleanParentNote}`,
           cardInnerWidth - 6
         )
       : [];
@@ -272,7 +302,10 @@ export function exportMemoryBookPdf(params: {
     }
 
     cursorY += blockHeight + 14;
-  });
+  }
+
+  params.onProgress?.(90);
+  await new Promise((r) => setTimeout(r, 0));
 
   // ================= CHAPTER II: SUGGESTED BABY NAMES =================
   doc.addPage();
@@ -293,8 +326,10 @@ export function exportMemoryBookPdf(params: {
   params.names.forEach((n, idx) => {
     doc.setFont('times', 'bold');
     doc.setFontSize(12.5);
+    const cleanSuggested = sanitizePdfText(n.suggested_name);
+    const cleanGuest = sanitizePdfText(n.guest) || 'Family Friend';
     const nameLines: string[] = doc.splitTextToSize(
-      `${idx + 1}. ${n.suggested_name}`,
+      `${idx + 1}. ${cleanSuggested}`,
       cardInnerWidth - 150
     );
 
@@ -321,12 +356,13 @@ export function exportMemoryBookPdf(params: {
     doc.setFont('times', 'italic');
     doc.setFontSize(10.5);
     doc.setTextColor(102, 116, 94);
-    doc.text(`Suggested by ${n.guest}`, textRightX, cursorY + 19, {
+    doc.text(`Suggested by ${cleanGuest}`, textRightX, cursorY + 19, {
       align: 'right',
     });
 
     cursorY += rowHeight + 10;
   });
 
+  params.onProgress?.(100);
   doc.save(`baby-${params.babySurname.toLowerCase()}-memory-book.pdf`);
 }

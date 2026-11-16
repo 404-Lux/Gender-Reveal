@@ -88,6 +88,28 @@ const MONTHS = [
 
 const MINUTE_PRESETS = [0, 15, 30, 45] as const;
 
+function splitGraphemes(text: string): string[] {
+  if (!text) return [];
+  if (typeof Intl !== 'undefined' && 'Segmenter' in Intl) {
+    const Seg = (
+      Intl as unknown as {
+        Segmenter: new (
+          locale: string,
+          opts: { granularity: 'grapheme' }
+        ) => { segment: (s: string) => Iterable<{ segment: string }> };
+      }
+    ).Segmenter;
+    const segmenter = new Seg('en', { granularity: 'grapheme' });
+    return Array.from(segmenter.segment(text), (s) => s.segment);
+  }
+  return Array.from(text);
+}
+
+function sliceGraphemes(text: string, count: number): string {
+  if (count <= 0) return '';
+  return splitGraphemes(text).slice(0, count).join('');
+}
+
 export function ParentsDashboardClient({
   slug,
   babySurname = 'Basio',
@@ -149,6 +171,8 @@ export function ParentsDashboardClient({
   );
   const [showHiddenEntries, setShowHiddenEntries] = useState(false);
   const [togglingHideKey, setTogglingHideKey] = useState<string | null>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState(0);
   const [activeLetterIdx, setActiveLetterIdx] = useState<number | null>(null);
   const [envelopeAnimKey, setEnvelopeAnimKey] = useState<number>(0);
   const [typewriterChars, setTypewriterChars] = useState<number>(0);
@@ -527,18 +551,26 @@ export function ParentsDashboardClient({
     }
   };
 
-  const handleExportPdf = () => {
-    if (!data) return;
+  const handleExportPdf = async () => {
+    if (!data || exportingPdf) return;
     triggerHaptic(20);
-    exportMemoryBookPdf({
-      babySurname,
-      coupleNames,
-      revealTimeIso: data.revealTime,
-      revealedGender: data.gender,
-      tally: data.tally,
-      wishes: data.wishes,
-      names: data.names,
-    });
+    setExportingPdf(true);
+    setPdfProgress(5);
+    try {
+      await exportMemoryBookPdf({
+        babySurname,
+        coupleNames,
+        revealTimeIso: data.revealTime,
+        revealedGender: data.gender,
+        tally: data.tally,
+        wishes: data.wishes.filter((w) => !w.hidden),
+        names: data.names.filter((n) => !n.hidden),
+        onProgress: (pct) => setPdfProgress(pct),
+      });
+    } finally {
+      setExportingPdf(false);
+      setPdfProgress(0);
+    }
   };
 
   if (loading || !data) {
@@ -553,10 +585,13 @@ export function ParentsDashboardClient({
 
   const activeLetter =
     activeLetterIdx !== null ? data.wishes[activeLetterIdx] : null;
-  const activeLetterTotalLen = activeLetter
-    ? activeLetter.wish_for_baby.length +
-      (activeLetter.note_for_parents?.length || 0)
+  const activeLetterWishLen = activeLetter
+    ? splitGraphemes(activeLetter.wish_for_baby).length
     : 0;
+  const activeLetterNoteLen = activeLetter?.note_for_parents
+    ? splitGraphemes(activeLetter.note_for_parents).length
+    : 0;
+  const activeLetterTotalLen = activeLetterWishLen + activeLetterNoteLen;
 
   const hiddenWishesCount = data.wishes.filter((w) => w.hidden).length;
   const hiddenNamesCount = data.names.filter((n) => n.hidden).length;
@@ -614,14 +649,24 @@ export function ParentsDashboardClient({
             <span>View Guest Experience</span>
           </Link>
 
-          <TactileButton
-            variant="primary"
-            onClick={handleExportPdf}
-            className="min-h-[42px] px-5 py-2 text-xs"
-          >
-            <BookBookmark size={16} weight="light" />
-            <span>Export Memory Book PDF</span>
-          </TactileButton>
+          <div className="flex flex-col items-center gap-1">
+            <TactileButton
+              variant="primary"
+              onClick={handleExportPdf}
+              disabled={exportingPdf}
+              className="min-h-[42px] px-5 py-2 text-xs"
+            >
+              <BookBookmark size={16} weight="light" />
+              <span>
+                {exportingPdf
+                  ? `Exporting Memory Book (${pdfProgress}%)...`
+                  : 'Export Memory Book PDF'}
+              </span>
+            </TactileButton>
+            <span className="text-[10px] text-[var(--text-secondary)]">
+              Best exported on a laptop or desktop browser
+            </span>
+          </div>
         </div>
       </div>
 
@@ -1734,9 +1779,9 @@ export function ParentsDashboardClient({
                   <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--text-secondary)]">
                     For Baby {babySurname}:
                   </p>
-                  <p className="min-h-[76px] font-display-editorial text-base sm:text-xl leading-relaxed text-[var(--text-primary)]">
+                  <p className="min-h-[76px] break-words font-display-editorial text-base sm:text-xl leading-relaxed text-[var(--text-primary)]">
                     &ldquo;
-                    {activeLetter.wish_for_baby.slice(0, typewriterChars)}
+                    {sliceGraphemes(activeLetter.wish_for_baby, typewriterChars)}
                     &rdquo;
                   </p>
                 </div>
@@ -1747,13 +1792,10 @@ export function ParentsDashboardClient({
                     <p className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--accent-primary)]">
                       Personal Note for {coupleNames}:
                     </p>
-                    <p className="text-xs sm:text-sm leading-relaxed text-[var(--text-primary)]">
-                      {activeLetter.note_for_parents.slice(
-                        0,
-                        Math.max(
-                          0,
-                          typewriterChars - activeLetter.wish_for_baby.length
-                        )
+                    <p className="break-words text-xs sm:text-sm leading-relaxed text-[var(--text-primary)]">
+                      {sliceGraphemes(
+                        activeLetter.note_for_parents,
+                        Math.max(0, typewriterChars - activeLetterWishLen)
                       )}
                     </p>
                   </div>

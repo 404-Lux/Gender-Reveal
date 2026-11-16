@@ -428,11 +428,11 @@ export function WaitingRoomStage({
                         }}
                       />
                       <div className="min-w-0">
-                        <span className="block font-display-editorial text-sm sm:text-base font-medium text-[var(--text-primary)] leading-snug">
+                        <span className="block break-words font-display-editorial text-sm sm:text-base font-medium text-[var(--text-primary)] leading-snug">
                           {g.name}
                         </span>
                         {g.relationship && (
-                          <span className="block text-[10px] text-[var(--text-secondary)]">
+                          <span className="block break-words text-[10px] text-[var(--text-secondary)]">
                             {g.relationship}
                           </span>
                         )}
@@ -472,7 +472,7 @@ export function WaitingRoomStage({
               <input
                 ref={nameInputRef}
                 type="text"
-                maxLength={70}
+                maxLength={30}
                 value={suggestedName}
                 onChange={(e) => setSuggestedName(e.target.value)}
                 placeholder={`Suggest a first name for Baby ${babySurname}...`}
