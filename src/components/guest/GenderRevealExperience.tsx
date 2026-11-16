@@ -304,6 +304,15 @@ export function GenderRevealExperience({
   }, [stage, countdown.isFinalTenSeconds, countdown.isExpired]);
 
   const handleStageChange = (nextStage: GuestFlowStage) => {
+    const isPostRevealStage =
+      nextStage === 'reveal' ||
+      nextStage === 'result' ||
+      nextStage === 'photobooth' ||
+      nextStage === 'prototype';
+    if (!isMockMode && !serverState.revealed && isPostRevealStage) {
+      return;
+    }
+
     if (
       nextStage === 'welcome' ||
       nextStage === 'guess' ||
@@ -502,14 +511,29 @@ export function GenderRevealExperience({
             const isActive =
               stage === stepItem.id ||
               (stage === 'prototype' && stepItem.id === 'reveal');
+            const isPostRevealStep =
+              stepItem.id === 'reveal' ||
+              stepItem.id === 'result' ||
+              stepItem.id === 'photobooth';
+            const isLockedBeforeReveal =
+              !isMockMode && !serverState.revealed && isPostRevealStep;
+
             return (
               <button
                 key={stepItem.id}
                 type="button"
+                disabled={isLockedBeforeReveal}
+                title={
+                  isLockedBeforeReveal
+                    ? 'Unlocks automatically at reveal time'
+                    : undefined
+                }
                 onClick={() => handleStageChange(stepItem.id)}
                 className={`min-h-[34px] rounded-full px-3.5 py-1 text-xs font-medium transition ${
                   isActive
                     ? 'bg-[var(--accent-primary)] text-[var(--linen)] shadow-2xs'
+                    : isLockedBeforeReveal
+                    ? 'cursor-not-allowed text-[var(--text-secondary)]/45'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
@@ -593,7 +617,9 @@ export function GenderRevealExperience({
               isReconnecting={isReconnecting}
               onSubmitNameSuggestion={handleNameSuggestionSubmit}
               onSubmitAdvice={handleAdviceSubmit}
-              onTriggerDemoRevealNow={() => handleStageChange('reveal')}
+              onTriggerDemoRevealNow={
+                isMockMode ? () => handleStageChange('reveal') : undefined
+              }
             />
           )}
 
