@@ -162,6 +162,13 @@ export function isLowEndDevice(): boolean {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
   const cores = navigator.hardwareConcurrency || 4;
   const memory = (navigator as unknown as { deviceMemory?: number }).deviceMemory || 4;
-  const saveData = (navigator as unknown as { connection?: { saveData?: boolean } }).connection?.saveData || false;
-  return cores <= 4 || memory <= 3 || saveData;
+  const conn = (
+    navigator as unknown as {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }
+  ).connection;
+  const saveData = Boolean(conn?.saveData);
+  const slowNet =
+    conn?.effectiveType === '2g' || conn?.effectiveType === 'slow-2g';
+  return cores <= 4 || memory <= 3 || saveData || slowNet;
 }

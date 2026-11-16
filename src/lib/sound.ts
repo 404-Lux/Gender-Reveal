@@ -115,8 +115,13 @@ class SoundManager {
   public preloadAll(): Promise<void> {
     if (typeof window === 'undefined') return Promise.resolve();
     if (this.initialized) return Promise.resolve();
-    this.initialized = true;
     Howler.mute(this.isMuted);
+    if (this.isMuted) {
+      // Lazy-defer procedural WAV synthesis until the user unmutes
+      this.bindGlobalButtonSound();
+      return Promise.resolve();
+    }
+    this.initialized = true;
 
     // 1. Upbeat, Sunny, Joyful Celebration Groove (120 BPM · 8-Bar Seamless Loop = 16.0s)
     // Bright acoustic ukulele/marimba melody + bouncy pizzicato bass + glockenspiel sparkles + light shaker/woodblock pulse

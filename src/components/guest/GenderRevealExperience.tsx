@@ -29,6 +29,7 @@ import { soundManager } from '@/lib/sound';
 import { CurtainStageTransition } from '@/components/shared/MotionPrimitives';
 import { CreatorBrandSignature } from '@/components/shared/CreatorBrandSignature';
 import { InAppBrowserGuard } from '@/components/shared/InAppBrowserGuard';
+import { RevealErrorBoundary } from '@/components/shared/RevealErrorBoundary';
 import {
   flushPendingWrites,
   sendWriteWithQueue,
@@ -443,29 +444,68 @@ export function GenderRevealExperience({
   }, [stage]);
 
   useEffect(() => {
-    // At T-0 / reveal stage, add 0–1.5s random client-side jitter so guests don't stampede at the exact same ms
-    const shouldJitter =
-      stage === 'reveal' || countdown.isExpired || failCountRef.current > 0;
-    const jitterMs = shouldJitter ? Math.round(Math.random() * 1500) : 0;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let initialTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const initialTimer = setTimeout(pollServerState, jitterMs);
-
-    const baseDelay =
-      stage === 'reveal'
-        ? 2000
-        : countdown.isFinalMinute
-        ? 3000
-        : 5000;
-    const backoffMultiplier = Math.min(4, Math.pow(1.6, failCountRef.current));
-    const pollJitter = Math.round(Math.random() * 600);
-    const intervalMs = Math.round(baseDelay * backoffMultiplier) + pollJitter;
-
-    const timer = setInterval(pollServerState, intervalMs);
-    return () => {
-      clearTimeout(initialTimer);
-      clearInterval(timer);
+    const getAdaptiveDelayMs = () => {
+      const baseDelay =
+        stage === 'reveal' || countdown.isFinalMinute
+          ? 3500
+          : countdown.totalMs <= 600_000
+          ? 10_000
+          : 45_000;
+      const backoffMultiplier = Math.min(4, Math.pow(1.6, failCountRef.current));
+      const pollJitter = Math.round(Math.random() * 600);
+      return Math.round(baseDelay * backoffMultiplier) + pollJitter;
     };
-  }, [pollServerState, countdown.isFinalMinute, countdown.isExpired, stage]);
+
+    const startPolling = (withImmediatePoll: boolean) => {
+      if (initialTimer) clearTimeout(initialTimer);
+      if (timer) clearInterval(timer);
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+
+      if (withImmediatePoll) {
+        // At T-0 / reveal stage, add 0–1.5s random client-side jitter so guests don't stampede at the exact same ms
+        const shouldJitter =
+          stage === 'reveal' || countdown.isExpired || failCountRef.current > 0;
+        const jitterMs = shouldJitter ? Math.round(Math.random() * 1500) : 0;
+        initialTimer = setTimeout(pollServerState, jitterMs);
+      }
+
+      timer = setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+          return;
+        }
+        pollServerState();
+      }, getAdaptiveDelayMs());
+    };
+
+    startPolling(true);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        startPolling(true);
+      } else {
+        if (initialTimer) clearTimeout(initialTimer);
+        if (timer) clearInterval(timer);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      if (initialTimer) clearTimeout(initialTimer);
+      if (timer) clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [
+    pollServerState,
+    countdown.isFinalMinute,
+    countdown.isExpired,
+    countdown.totalMs,
+    stage,
+  ]);
 
   useEffect(() => {
     if (
@@ -741,19 +781,21 @@ export function GenderRevealExperience({
         <CurtainStageTransition stageKey={stage}>
           {/* PROTOTYPE / BALLOON POP REVEAL STAGE */}
           {(stage === 'prototype' || stage === 'reveal') && (
-            <BalloonPopStage
-              gender={
-                serverState.gender || (isMockMode ? devPreviewGender : null)
-              }
-              babySurname={babySurname}
-              isReplay={isLateJoinReplay}
-              isPrototypeMode={isMockMode}
-              onChangePreviewGender={
-                isMockMode ? (g) => setDevPreviewGender(g) : undefined
-              }
-              onCompleteToResult={() => handleStageChange('result')}
-              onOpenPhotobooth={() => handleStageChange('photobooth')}
-            />
+            <RevealErrorBoundary>
+              <BalloonPopStage
+                gender={
+                  serverState.gender || (isMockMode ? devPreviewGender : null)
+                }
+                babySurname={babySurname}
+                isReplay={isLateJoinReplay}
+                isPrototypeMode={isMockMode}
+                onChangePreviewGender={
+                  isMockMode ? (g) => setDevPreviewGender(g) : undefined
+                }
+                onCompleteToResult={() => handleStageChange('result')}
+                onOpenPhotobooth={() => handleStageChange('photobooth')}
+              />
+            </RevealErrorBoundary>
           )}
 
           {/* 1. WELCOME STAGE */}
