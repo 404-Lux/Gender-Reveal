@@ -5,8 +5,9 @@ import { ArrowUpRight } from '@phosphor-icons/react';
 
 export const CREATOR_BRAND_NAME = 'Harra Ramos';
 export const CREATOR_PORTFOLIO_URL =
-  process.env.NEXT_PUBLIC_PORTFOLIO_URL || 'https://tapkonek-ph.vercel.app/harra';
-export const CREATOR_PORTFOLIO_DISPLAY = 'tapkonek-ph.vercel.app/harra';
+  process.env.NEXT_PUBLIC_PORTFOLIO_URL ||
+  'https://www.instagram.com/harramos_26';
+export const CREATOR_PORTFOLIO_DISPLAY = 'instagram.com/harramos_26';
 
 export function CreatorBrandSignature({
   portfolioUrl = CREATOR_PORTFOLIO_URL,
