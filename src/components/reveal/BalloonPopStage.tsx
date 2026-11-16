@@ -108,6 +108,8 @@ export function BalloonPopStage({
 }: BalloonPopStageProps) {
   const prefersReduced = useReducedMotion();
   useWakeLock(true);
+  const [liteMode, setLiteMode] = useState<boolean>(() => isLowEndDevice());
+  const reduceEffects = Boolean(prefersReduced || liteMode);
   const effectiveGender: RevealGender = gender || 'girl';
 
   const [step, setStep] = useState<RevealSequenceStep>('countdown10');
@@ -450,7 +452,7 @@ export function BalloonPopStage({
       setHeroPoppingBeat(false);
     };
 
-    if (heroBalloonRef.current && !prefersReduced) {
+    if (heroBalloonRef.current && !reduceEffects) {
       const tl = gsap.timeline({ onComplete: triggerTransformation });
       tl.to(heroBalloonRef.current, {
         scaleX: 1.15,
@@ -468,7 +470,7 @@ export function BalloonPopStage({
   }, [
     heroPoppingBeat,
     effectiveGender,
-    prefersReduced,
+    reduceEffects,
     triggerBalloonBurstEffect,
     fireRevealConfetti,
   ]);
@@ -676,6 +678,19 @@ export function BalloonPopStage({
                   <span>Sound On</span>
                 </>
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setLiteMode((v) => !v)}
+              aria-pressed={liteMode}
+              className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
+                liteMode
+                  ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/15 text-[var(--accent-primary)]'
+                  : 'border-[var(--border-hairline)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              <span>{liteMode ? 'Lite Mode On' : 'Lite Mode'}</span>
             </button>
 
             <button
@@ -935,7 +950,7 @@ export function BalloonPopStage({
                     aria-label="Tap final balloon to reveal gender"
                     onClick={handlePopHeroBalloon}
                     animate={
-                      prefersReduced
+                      reduceEffects
                         ? {}
                         : {
                             y: [-10, 10, -10],

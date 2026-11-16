@@ -479,8 +479,9 @@ export function PhotoboothStage({
       canvas.width = 900;
       canvas.height = 1280;
     } else {
+      // Cap 4-shot strip height <= 1600px for older iOS Safari canvas limits
       canvas.width = 760;
-      canvas.height = 2000;
+      canvas.height = 1560;
     }
 
     const ctx = canvas.getContext('2d');
@@ -632,12 +633,12 @@ export function PhotoboothStage({
           ctx.restore();
         }
       } else {
-        // 4-Shot Vertical Photo Strip (Balanced 4:3 photobooth slots with object-fit: cover)
+        // 4-Shot Vertical Photo Strip (Balanced 4:3 photobooth slots capped <= 1600px height)
         const px = 86;
         const pw = canvas.width - 172;
-        const ph = 355;
-        const gap = 22;
-        const startY = 125;
+        const ph = 268;
+        const gap = 18;
+        const startY = 120;
 
         loadedImages.forEach((img, idx) => {
           const py = startY + idx * (ph + gap);
@@ -679,7 +680,7 @@ export function PhotoboothStage({
       );
 
       // 5. Theme-Specific Paper-Cut Corner Ornaments
-      const footerY = boothMode === 'single' ? 1025 : 1735;
+      const footerY = boothMode === 'single' ? 1025 : 1315;
 
       if (isBoy) {
         ctx.fillStyle = '#FBF8F2';

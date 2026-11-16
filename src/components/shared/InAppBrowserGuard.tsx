@@ -19,6 +19,8 @@ export function detectInAppBrowser(): string | null {
   if (/BytedanceWebview|TikTok|musical_ly/i.test(ua)) return 'TikTok';
   if (/Line\//i.test(ua)) return 'LINE';
   if (/MicroMessenger/i.test(ua)) return 'WeChat';
+  if (/UCBrowser|UCWEB/i.test(ua)) return 'UC Browser';
+  if (/Opera Mini|OPiOS/i.test(ua)) return 'Opera Mini';
   return null;
 }
 
