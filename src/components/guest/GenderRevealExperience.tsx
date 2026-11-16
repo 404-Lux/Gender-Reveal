@@ -567,6 +567,34 @@ export function GenderRevealExperience({
     }
   };
 
+  // Never update document.title or meta[name="theme-color"] with the gender before the Hero Balloon pop completes
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const isPostPopStage = stage === 'result' || stage === 'photobooth';
+    const activeGender =
+      isPostPopStage && (serverState.gender || (isMockMode ? devPreviewGender : null));
+
+    if (activeGender === 'boy') {
+      document.title = `It's a Boy! · Baby ${babySurname}`;
+    } else if (activeGender === 'girl') {
+      document.title = `It's a Girl! · Baby ${babySurname}`;
+    } else {
+      document.title = `Paper & Light · Baby ${babySurname} Gender Reveal`;
+    }
+
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) {
+      themeMeta.setAttribute(
+        'content',
+        activeGender === 'boy'
+          ? '#E9EFF4'
+          : activeGender === 'girl'
+          ? '#F6EBEB'
+          : '#FAF6F0'
+      );
+    }
+  }, [stage, serverState.gender, isMockMode, devPreviewGender, babySurname]);
+
   const handleToggleReducedMotion = () => {
     const next = !devReducedMotion;
     setDevReducedMotion(next);
