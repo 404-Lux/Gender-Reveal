@@ -212,8 +212,28 @@ export function GenderRevealExperience({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      const PL_APP_VERSION = '2026.11.2';
+      if (localStorage.getItem('pl_v2_app_version') !== PL_APP_VERSION) {
+        const legacyKeys = [
+          'pl_guest_name',
+          'pl_guest_side',
+          'pl_guest_relationship',
+          'pl_guest_guess',
+          'pl_guest_stage',
+          'pl_cached_public_state',
+        ];
+        legacyKeys.forEach((k) => {
+          try {
+            localStorage.removeItem(k);
+          } catch {
+            // Ignore
+          }
+        });
+        localStorage.setItem('pl_v2_app_version', PL_APP_VERSION);
+      }
+
       // Restore cached serverState immediately so refresh never flashes default dates
-      const cachedStateRaw = localStorage.getItem('pl_cached_public_state');
+      const cachedStateRaw = localStorage.getItem('pl_v2_cached_public_state');
       let cachedRevealed = false;
       let cachedGender: RevealGender | undefined;
       if (cachedStateRaw) {
@@ -244,11 +264,11 @@ export function GenderRevealExperience({
           ]
         : ['welcome', 'guess', 'wishes', 'waiting', 'reveal', 'result', 'photobooth'];
 
-      const savedName = localStorage.getItem('pl_guest_name');
-      const savedSide = localStorage.getItem('pl_guest_side') as FamilySide | null;
-      const savedRel = localStorage.getItem('pl_guest_relationship');
-      const savedGuess = localStorage.getItem('pl_guest_guess') as RevealGender | null;
-      const savedStage = localStorage.getItem('pl_guest_stage') as GuestFlowStage | null;
+      const savedName = localStorage.getItem('pl_v2_guest_name');
+      const savedSide = localStorage.getItem('pl_v2_guest_side') as FamilySide | null;
+      const savedRel = localStorage.getItem('pl_v2_guest_relationship');
+      const savedGuess = localStorage.getItem('pl_v2_guest_guess') as RevealGender | null;
+      const savedStage = localStorage.getItem('pl_v2_guest_stage') as GuestFlowStage | null;
 
       if (savedName) setGuestName(savedName);
       if (savedSide === 'mother' || savedSide === 'father' || savedSide === 'both') {
@@ -408,7 +428,7 @@ export function GenderRevealExperience({
           correctGuessers: undefined,
         };
         localStorage.setItem(
-          'pl_cached_public_state',
+          'pl_v2_cached_public_state',
           JSON.stringify(safeCached)
         );
       } catch {
@@ -421,7 +441,7 @@ export function GenderRevealExperience({
         pendingPostRevealStageRef.current = null;
         setStage('waiting');
         try {
-          localStorage.setItem('pl_guest_stage', 'waiting');
+          localStorage.setItem('pl_v2_guest_stage', 'waiting');
         } catch {
           // Ignore
         }
@@ -520,7 +540,7 @@ export function GenderRevealExperience({
       hasAutoEnteredRevealRef.current = true;
       setStage('reveal');
       try {
-        localStorage.setItem('pl_guest_stage', 'reveal');
+        localStorage.setItem('pl_v2_guest_stage', 'reveal');
       } catch {
         // Ignore
       }
@@ -558,7 +578,7 @@ export function GenderRevealExperience({
     }
     setStage(nextStage);
     try {
-      localStorage.setItem('pl_guest_stage', nextStage);
+      localStorage.setItem('pl_v2_guest_stage', nextStage);
     } catch {
       // Ignore
     }
@@ -618,10 +638,10 @@ export function GenderRevealExperience({
     setGuestGuess(payload.guess);
 
     try {
-      localStorage.setItem('pl_guest_name', payload.name);
-      localStorage.setItem('pl_guest_side', payload.side);
-      localStorage.setItem('pl_guest_relationship', payload.relationship);
-      localStorage.setItem('pl_guest_guess', payload.guess);
+      localStorage.setItem('pl_v2_guest_name', payload.name);
+      localStorage.setItem('pl_v2_guest_side', payload.side);
+      localStorage.setItem('pl_v2_guest_relationship', payload.relationship);
+      localStorage.setItem('pl_v2_guest_guess', payload.guess);
     } catch {
       // Ignore
     }
@@ -823,7 +843,7 @@ export function GenderRevealExperience({
                   hasAutoEnteredRevealRef.current = true;
                   setStage('reveal');
                   try {
-                    localStorage.setItem('pl_guest_stage', 'reveal');
+                    localStorage.setItem('pl_v2_guest_stage', 'reveal');
                   } catch {
                     // Ignore
                   }
