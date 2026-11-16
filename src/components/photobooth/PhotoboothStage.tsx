@@ -301,7 +301,14 @@ export function PhotoboothStage({
   }, []);
 
   useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        stopCamera();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
       stopCamera();
     };
   }, [stopCamera]);
@@ -335,10 +342,31 @@ export function PhotoboothStage({
           await videoRef.current.play();
         }
         setCameraActive(true);
-      } catch {
-        setCameraError(
-          'Could not open the camera (permission denied or blocked by an in-app browser). Please allow camera access or open in Chrome/Safari.'
-        );
+      } catch (err) {
+        const errName = err instanceof Error ? err.name : '';
+        if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+          setCameraError(
+            'Camera permission was denied. Allow camera access in your browser settings, or tap Snap Sample Card below to save a themed keepsake frame.'
+          );
+        } else if (
+          errName === 'NotFoundError' ||
+          errName === 'DevicesNotFoundError'
+        ) {
+          setCameraError(
+            'No camera was detected on this device. You can still preview and download a themed keepsake card below.'
+          );
+        } else if (
+          errName === 'NotReadableError' ||
+          errName === 'TrackStartError'
+        ) {
+          setCameraError(
+            'Your camera is currently in use by another app. Close the other app and tap Retry, or use the themed keepsake card below.'
+          );
+        } else {
+          setCameraError(
+            'Camera access is blocked in this browser. Open this link in Chrome or Safari to use the live camera, or save a themed keepsake card below.'
+          );
+        }
         setCameraActive(false);
       }
     },
@@ -516,12 +544,18 @@ export function PhotoboothStage({
       .then((qrUrl) => loadImg(qrUrl))
       .catch(() => null);
 
+    const fontsReadyPromise =
+      typeof document !== 'undefined' && document.fonts?.ready
+        ? document.fonts.ready.catch(() => {})
+        : Promise.resolve();
+
     Promise.all([
       Promise.all(
         (boothMode === 'single' ? [shots[0]] : shots.slice(0, 4)).map(loadImg)
       ),
       stickerDataUrl ? loadImg(stickerDataUrl) : Promise.resolve(null),
       qrPromise,
+      fontsReadyPromise,
     ]).then(([loadedImages, stickerImg, brandQrImg]) => {
       if (cancelled) return;
 
