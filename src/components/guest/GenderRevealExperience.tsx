@@ -303,19 +303,82 @@ export function GenderRevealExperience({
     nowClientMs
   );
 
+  // Multi-sample lowest-latency clock sync against uncached Edge /api/time
+  const syncServerClock = useCallback(async () => {
+    let bestRtt = Infinity;
+    let bestOffset = serverOffsetMs;
+    let syncedAny = false;
+
+    for (let i = 0; i < 3; i++) {
+      try {
+        const reqStart = performance.now();
+        const wallStart = Date.now();
+        const res = await fetch('/api/time', { cache: 'no-store' });
+        if (!res.ok) continue;
+        const json = (await res.json()) as { epochMs?: number; serverTime?: string };
+        const reqEndPerf = performance.now();
+        const rtt = Math.max(0, reqEndPerf - reqStart);
+        const wallEnd = wallStart + rtt;
+        const serverEpoch =
+          typeof json.epochMs === 'number'
+            ? json.epochMs
+            : json.serverTime
+            ? new Date(json.serverTime).getTime()
+            : NaN;
+
+        if (!isNaN(serverEpoch) && rtt < bestRtt) {
+          bestRtt = rtt;
+          bestOffset = serverEpoch + rtt / 2 - wallEnd;
+          syncedAny = true;
+        }
+      } catch {
+        // Ignore failed sample
+      }
+      if (i < 2) {
+        await new Promise((r) => setTimeout(r, 60));
+      }
+    }
+
+    if (syncedAny) {
+      setServerOffsetMs(bestOffset);
+    }
+  }, [serverOffsetMs]);
+
+  useEffect(() => {
+    syncServerClock();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        syncServerClock();
+      }
+    };
+    const handleOnline = () => {
+      syncServerClock();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('online', handleOnline);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Periodic re-sync in the final 2 minutes
+  useEffect(() => {
+    if (countdown.totalMs <= 0 || countdown.totalMs > 120_000) return;
+    const id = setInterval(() => {
+      syncServerClock();
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [countdown.totalMs, syncServerClock]);
+
   const pollServerState = useCallback(async () => {
     try {
-      const reqStart = Date.now();
       const res = await fetch('/api/state', { cache: 'no-store' });
       if (!res.ok) throw new Error('Status not OK');
       const data = (await res.json()) as PolledPublicState;
-
-      const reqEnd = Date.now();
-      const rttHalf = (reqEnd - reqStart) / 2;
-      const serverEpoch = new Date(data.serverTime).getTime();
-      if (!isNaN(serverEpoch)) {
-        setServerOffsetMs(serverEpoch + rttHalf - reqEnd);
-      }
 
       setServerState(data);
       try {
