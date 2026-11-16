@@ -722,29 +722,72 @@ export function ParentsDashboardClient({
                   })}
                 </div>
 
-                {/* Minutes & AM/PM */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-[var(--text-secondary)] mr-1">
+                {/* Exact Minutes (00–59 Stepper & Direct Input + Quick Presets) & AM/PM */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">
                       Min:
                     </span>
-                    {MINUTE_PRESETS.map((min) => (
+                    <div className="flex items-center gap-1">
                       <button
-                        key={min}
                         type="button"
+                        aria-label="Decrease minute"
                         onClick={() => {
                           triggerHaptic(8);
-                          setPickMinute(min);
+                          setPickMinute((m) => (m > 0 ? m - 1 : 59));
                         }}
-                        className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
-                          pickMinute === min
-                            ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)] text-[var(--linen)]'
-                            : 'border-[var(--border-hairline)] bg-[var(--bg-surface)] text-[var(--text-primary)]'
-                        }`}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] text-sm font-medium text-[var(--text-primary)] hover:border-[var(--accent-primary)]"
                       >
-                        :{String(min).padStart(2, '0')}
+                        -
                       </button>
-                    ))}
+                      <input
+                        type="number"
+                        min={0}
+                        max={59}
+                        aria-label="Reveal minute (00 to 59)"
+                        value={String(pickMinute).padStart(2, '0')}
+                        onChange={(e) => {
+                          const raw = parseInt(e.target.value, 10);
+                          if (isNaN(raw)) {
+                            setPickMinute(0);
+                          } else {
+                            setPickMinute(Math.max(0, Math.min(59, raw)));
+                          }
+                        }}
+                        className="h-8 w-12 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] text-center font-display-editorial text-lg font-semibold text-[var(--text-primary)] focus:border-[var(--accent-primary)] focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        aria-label="Increase minute"
+                        onClick={() => {
+                          triggerHaptic(8);
+                          setPickMinute((m) => (m < 59 ? m + 1 : 0));
+                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] text-sm font-medium text-[var(--text-primary)] hover:border-[var(--accent-primary)]"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {MINUTE_PRESETS.map((min) => (
+                        <button
+                          key={min}
+                          type="button"
+                          onClick={() => {
+                            triggerHaptic(8);
+                            setPickMinute(min);
+                          }}
+                          className={`rounded-lg border px-2 py-1 text-[11px] font-medium transition ${
+                            pickMinute === min
+                              ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)] text-[var(--linen)]'
+                              : 'border-[var(--border-hairline)] bg-[var(--bg-surface)] text-[var(--text-secondary)]'
+                          }`}
+                        >
+                          :{String(min).padStart(2, '0')}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="inline-flex rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-0.5">
