@@ -150,14 +150,15 @@ export function BalloonPopStage({
       clientY: number,
       primaryColor: string,
       secondaryColor: string,
-      label?: string
+      label?: string,
+      withConfetti = false
     ) => {
       if (!stageRef.current) return;
       const rect = stageRef.current.getBoundingClientRect();
       const localX = clientX - rect.left;
       const localY = clientY - rect.top;
 
-      if (!prefersReduced) {
+      if (withConfetti && !prefersReduced) {
         try {
           const normX = Math.max(
             0.1,
@@ -168,12 +169,12 @@ export function BalloonPopStage({
             Math.min(0.9, clientY / window.innerHeight)
           );
           confetti({
-            particleCount: isLowEndDevice() ? 12 : 22,
-            spread: 65,
-            startVelocity: 22,
+            particleCount: isLowEndDevice() ? 10 : 18,
+            spread: 60,
+            startVelocity: 20,
             gravity: 0.9,
             scalar: 0.8,
-            ticks: 95,
+            ticks: 85,
             origin: { x: normX, y: normY },
             colors: [primaryColor, secondaryColor, '#E8CF92', '#FBF8F2'],
           });
@@ -182,14 +183,14 @@ export function BalloonPopStage({
         }
       }
 
-      const count = isLowEndDevice() ? 12 : 20;
+      const count = isLowEndDevice() ? 6 : 8;
       const particles = Array.from({ length: count }).map((_, idx) => {
         const angle = (Math.PI * 2 * idx) / count;
         return {
           angle,
-          distance: 48 + (idx % 4) * 20,
-          size: 6 + (idx % 3) * 3,
-          rot: idx * 40,
+          distance: 42 + (idx % 3) * 18,
+          size: 6 + (idx % 2) * 3,
+          rot: idx * 45,
           color:
             idx % 3 === 0
               ? primaryColor
@@ -202,7 +203,7 @@ export function BalloonPopStage({
 
       const burstId = `${Date.now()}-${Math.random()}`;
       setBursts((prev) => [
-        ...prev.slice(-10),
+        ...prev.slice(-5),
         {
           id: burstId,
           x: localX,
@@ -341,7 +342,7 @@ export function BalloonPopStage({
       rim: paletteItem.rim,
     };
 
-    setRisingBalloons((prev) => [...prev.slice(-14), newBalloon]);
+    setRisingBalloons((prev) => [...prev.slice(-7), newBalloon]);
   }, []);
 
   useEffect(() => {
@@ -351,11 +352,14 @@ export function BalloonPopStage({
     soundManager.play('swell');
 
     setRisingBalloons([]);
-    const initTimers = [0, 220, 460, 700].map((delay) =>
+    const initTimers = [0, 320, 660].map((delay) =>
       setTimeout(spawnRisingBalloon, delay)
     );
 
-    const spawner = setInterval(spawnRisingBalloon, 520);
+    const spawner = setInterval(
+      spawnRisingBalloon,
+      isLowEndDevice() ? 880 : 720
+    );
 
     const countdownTimer = setInterval(() => {
       setSecondsLeft((prev) => {
@@ -832,64 +836,38 @@ export function BalloonPopStage({
                     </span>
                   </div>
 
-                  {/* Rising Balloons with Horizontal Sway, Gentle Tilt & Animated Waving Tails */}
-                  <AnimatePresence>
-                    {risingBalloons.map((b) => (
-                      <motion.button
-                        key={b.id}
-                        type="button"
-                        aria-label="Tap rising balloon to pop"
-                        initial={{
-                          y: 410,
-                          x: 0,
-                          rotate: -3,
-                          opacity: 0,
-                          scale: 0.88,
-                        }}
-                        animate={{
-                          y: -210,
-                          x: [0, b.swayAmp, -b.swayAmp * 0.8, b.swayAmp * 0.5, 0],
-                          rotate: [-3.5, 3.5, -3, 2.5, -2],
-                          opacity: [0, 1, 1, 0.92],
-                          scale: [0.9, 1, 0.98, 1.02],
-                        }}
-                        exit={{ scale: 1.35, opacity: 0 }}
-                        transition={{
-                          y: { duration: b.duration, ease: 'linear' },
-                          x: {
-                            duration: b.duration,
-                            ease: 'easeInOut',
-                          },
-                          rotate: {
-                            duration: b.duration,
-                            ease: 'easeInOut',
-                          },
-                          opacity: {
-                            duration: b.duration,
-                            times: [0, 0.08, 0.9, 1],
-                          },
-                        }}
-                        onAnimationComplete={() => {
-                          setRisingBalloons((prev) =>
-                            prev.filter((item) => item.id !== b.id)
-                          );
-                        }}
-                        onPointerDown={(e) => handlePopRisingBalloon(b, e)}
-                        style={{ left: `${b.laneX}%` }}
-                        className="group absolute top-0 -translate-x-1/2 cursor-pointer p-2 focus:outline-none active:scale-95"
-                      >
-                        <PaperBalloonSvg
-                          fill={b.fill}
-                          shade={b.shade}
-                          highlight={b.highlight}
-                          rim={b.rim}
-                          size={b.size}
-                          animateTail
-                          className="transition-transform group-hover:scale-105"
-                        />
-                      </motion.button>
-                    ))}
-                  </AnimatePresence>
+                  {/* Rising Balloons (GPU-Composited CSS Keyframes for Smooth 60 FPS on Mobile) */}
+                  {risingBalloons.map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      aria-label="Tap rising balloon to pop"
+                      onAnimationEnd={() => {
+                        setRisingBalloons((prev) =>
+                          prev.filter((item) => item.id !== b.id)
+                        );
+                      }}
+                      onPointerDown={(e) => handlePopRisingBalloon(b, e)}
+                      style={
+                        {
+                          left: `${b.laneX}%`,
+                          animationDuration: `${b.duration}s`,
+                          '--sway-x': `${b.swayAmp}px`,
+                        } as React.CSSProperties
+                      }
+                      className="balloon-float-up group absolute top-0 cursor-pointer p-2 focus:outline-none active:scale-95"
+                    >
+                      <PaperBalloonSvg
+                        fill={b.fill}
+                        shade={b.shade}
+                        highlight={b.highlight}
+                        rim={b.rim}
+                        size={b.size}
+                        animateTail={false}
+                        className="[&_svg]:filter-none"
+                      />
+                    </button>
+                  ))}
                 </div>
 
                 {/* Clean Bottom Footer Bar (Outside the balloon sky window) */}

@@ -115,6 +115,35 @@ body {
   border-radius: 9999px;
 }
 
+/* GPU-composited rising balloon animation (60 FPS on mobile) */
+@keyframes balloonFloatUp {
+  0% {
+    transform: translate3d(-50%, 400px, 0) rotate(-3deg) scale(0.92);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate3d(calc(-50% + var(--sway-x, 12px)), 110px, 0) rotate(3deg) scale(1);
+    opacity: 1;
+  }
+  90% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: translate3d(calc(-50% - var(--sway-x, 12px) * 0.6), -210px, 0) rotate(-2deg) scale(0.98);
+    opacity: 0;
+  }
+}
+
+.balloon-float-up {
+  will-change: transform, opacity;
+  animation-name: balloonFloatUp;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
 /* Respect prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   *,
