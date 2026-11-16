@@ -1,29 +1,27 @@
 import React from 'react';
+import { notFound } from 'next/navigation';
 import { GenderRevealExperience } from '@/components/guest/GenderRevealExperience';
+import {
+  getBabySurname,
+  getCoupleNames,
+  getParentsSlug,
+  isMockModeEnabled,
+} from '@/lib/env';
 
 export default function BalloonPopPrototypePage() {
-  const rawSurname = process.env.NEXT_PUBLIC_BABY_SURNAME;
-  const babySurname =
-    !rawSurname || rawSurname === 'Alonzo' ? 'Basio' : rawSurname;
+  const isMockMode = isMockModeEnabled();
 
-  const rawCouple = process.env.NEXT_PUBLIC_COUPLE_NAMES;
-  const coupleNames =
-    !rawCouple || rawCouple.includes('Alonzo')
-      ? 'Jazzmine & Ruhmshynne Basio'
-      : rawCouple;
-
-  const isMockMode = process.env.NEXT_PUBLIC_MOCK === 'true';
-  const rawSlug = process.env.PARENTS_SECRET_SLUG;
-  const parentsSecretSlug =
-    !rawSlug || rawSlug === 'alonzo-secret-2026' ? 'basio-secret-2026' : rawSlug;
+  if (!isMockMode) {
+    notFound();
+  }
 
   return (
     <GenderRevealExperience
       initialStage="prototype"
-      babySurname={babySurname}
-      coupleNames={coupleNames}
+      babySurname={getBabySurname()}
+      coupleNames={getCoupleNames()}
       isMockMode={isMockMode}
-      parentsSecretSlug={parentsSecretSlug}
+      parentsSecretSlug={getParentsSlug() || ''}
     />
   );
 }

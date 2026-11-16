@@ -230,16 +230,18 @@ export function GenderRevealExperience({
 
       const params = new URLSearchParams(window.location.search);
       const viewParam = params.get('view') as GuestFlowStage | null;
-      const validStages: GuestFlowStage[] = [
-        'prototype',
-        'welcome',
-        'guess',
-        'wishes',
-        'waiting',
-        'reveal',
-        'result',
-        'photobooth',
-      ];
+      const validStages: GuestFlowStage[] = isMockMode
+        ? [
+            'prototype',
+            'welcome',
+            'guess',
+            'wishes',
+            'waiting',
+            'reveal',
+            'result',
+            'photobooth',
+          ]
+        : ['welcome', 'guess', 'wishes', 'waiting', 'reveal', 'result', 'photobooth'];
 
       const savedName = localStorage.getItem('pl_guest_name');
       const savedSide = localStorage.getItem('pl_guest_side') as FamilySide | null;
@@ -932,13 +934,15 @@ export function GenderRevealExperience({
                   {devReducedMotion ? 'Motion: Reduced' : 'Motion: Full'}
                 </button>
 
-                <Link
-                  href={`/parents/${parentsSecretSlug}`}
-                  className="inline-flex items-center gap-1 rounded-lg bg-[var(--accent-primary)] px-3 py-1.5 font-medium text-[var(--linen)]"
-                >
-                  <LockKey size={13} weight="light" />
-                  <span>Parents Page</span>
-                </Link>
+                {isMockMode && parentsSecretSlug && (
+                  <Link
+                    href={`/parents/${parentsSecretSlug}`}
+                    className="inline-flex items-center gap-1 rounded-lg bg-[var(--accent-primary)] px-3 py-1.5 font-medium text-[var(--linen)]"
+                  >
+                    <LockKey size={13} weight="light" />
+                    <span>Parents Page</span>
+                  </Link>
+                )}
               </div>
             </div>
           )}

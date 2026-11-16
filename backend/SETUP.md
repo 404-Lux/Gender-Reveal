@@ -20,8 +20,14 @@ This guide walks through setting up the Google Sheets database and connecting th
    - Check **"Show 'appsscript.json' manifest file in editor"** and verify `"timeZone": "Asia/Manila"`.
    - Scroll down to **Script Properties** and click **Add script property**:
      - `APPS_SCRIPT_SECRET`: Set a strong random secret string (e.g., `pl_9f8e7d6c5b4a3f2e1d_2026`).
-     - `PARENTS_SECRET_SLUG`: Set the private URL slug for the couple's dashboard (e.g., `basio-secret-2026`).
+     - `PARENTS_SLUG`: Set a long random URL-safe slug of **at least 24 characters** for the parents' dashboard (e.g., `basio-p9K4mX7vQ2nR8wL5zT3cH6jB`).
 4. Click **Save script properties**.
+
+### Rotating `PARENTS_SLUG` (If Ever Needed)
+1. Generate a new 24+ character URL-safe random string.
+2. Update `PARENTS_SLUG` in **Apps Script → Project Settings → Script Properties**.
+3. Update `PARENTS_SLUG` in **Vercel → Settings → Environment Variables** and **Redeploy**.
+4. Immediately share the new `/parents/<new-slug>` link with the parents—the old URL returns `404` right away.
 
 ---
 
@@ -42,9 +48,10 @@ This guide walks through setting up the Google Sheets database and connecting th
 1. In your Vercel project dashboard, go to **Settings → Environment Variables** and add:
    - `APPS_SCRIPT_URL` = `https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec`
    - `APPS_SCRIPT_SECRET` = *(same value set in Script Properties)*
-   - `PARENTS_SECRET_SLUG` = *(same secret slug set in Script Properties)*
+   - `PARENTS_SLUG` = *(same 24+ char slug set in Script Properties)*
    - `NEXT_PUBLIC_MOCK` = `false`
    - `NEXT_PUBLIC_BABY_SURNAME` = `Basio`
    - `NEXT_PUBLIC_COUPLE_NAMES` = `Jazzmine & Ruhmshynne Basio`
-2. Redeploy your Vercel project.
-3. Share `/parents/[PARENTS_SECRET_SLUG]` privately with the couple (or their doctor/trusted keeper of the envelope) to set the PHT reveal time and lock in the gender.
+2. **Protect Staging/Preview Deployments**: In Vercel → **Settings → Deployment Protection**, set **Vercel Authentication** to **Only Preview Deployments** (or **Standard Protection**) so your staging preview links are not publicly guessable, and delete any old preview deployments that had `NEXT_PUBLIC_MOCK=true`.
+3. Redeploy your Vercel project.
+4. Share `/parents/[PARENTS_SLUG]` privately with the couple (or their doctor/trusted keeper of the envelope) to set the PHT reveal time and lock in the gender.
