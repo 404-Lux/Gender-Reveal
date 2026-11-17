@@ -931,6 +931,7 @@ export function GenderRevealExperience({
               isReconnecting={isReconnecting}
               onSubmitNameSuggestion={handleNameSuggestionSubmit}
               onSubmitAdvice={handleAdviceSubmit}
+              onBackToCover={() => handleStageChange('welcome')}
               onTriggerDemoRevealNow={
                 isMockMode ? () => handleStageChange('reveal') : undefined
               }

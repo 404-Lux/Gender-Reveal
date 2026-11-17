@@ -58,6 +58,7 @@ export interface WaitingRoomStageProps {
   onSubmitNameSuggestion: (suggestedName: string) => Promise<void>;
   onSubmitAdvice?: (advice: string) => Promise<void>;
   onTriggerDemoRevealNow?: () => void;
+  onBackToCover?: () => void;
 }
 
 export function WaitingRoomStage({
@@ -72,6 +73,7 @@ export function WaitingRoomStage({
   isReconnecting,
   onSubmitNameSuggestion,
   onTriggerDemoRevealNow,
+  onBackToCover,
 }: WaitingRoomStageProps) {
   const [isMuted, setIsMuted] = useState(soundManager.getMuted());
   useWakeLock(true);
@@ -169,18 +171,32 @@ export function WaitingRoomStage({
     >
       {/* Main Centered Countdown & Live Tally Card */}
       <div className="paper-card-surface mx-auto flex flex-col items-center rounded-[32px] px-5 py-8 sm:px-10 sm:py-10 text-center space-y-6">
-        <div className="flex w-full items-center justify-between border-b border-[var(--border-hairline)] pb-4 text-xs">
-          {isReconnecting ? (
-            <span className="inline-flex items-center gap-1.5 font-medium text-[var(--accent-primary)]">
-              <ArrowsClockwise size={14} weight="light" className="animate-spin" />
-              <span>Reconnecting...</span>
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 text-[var(--text-secondary)]">
-              <WifiHigh size={14} weight="light" className="text-[var(--accent-primary)]" />
-              <span>Synced Live</span>
-            </span>
-          )}
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 border-b border-[var(--border-hairline)] pb-4 text-xs">
+          <div className="flex items-center gap-2.5">
+            {onBackToCover && (
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(10);
+                  onBackToCover();
+                }}
+                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-primary)]/70 px-3.5 py-1 text-xs font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+              >
+                <span>Back to Cover</span>
+              </button>
+            )}
+            {isReconnecting ? (
+              <span className="inline-flex items-center gap-1.5 font-medium text-[var(--accent-primary)]">
+                <ArrowsClockwise size={14} weight="light" className="animate-spin" />
+                <span>Reconnecting...</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-[var(--text-secondary)]">
+                <WifiHigh size={14} weight="light" className="text-[var(--accent-primary)]" />
+                <span>Synced Live</span>
+              </span>
+            )}
+          </div>
 
           <button
             type="button"
