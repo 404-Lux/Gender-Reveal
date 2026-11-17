@@ -675,14 +675,27 @@ function doPost(e) {
           var tab = String(body.tab || "");
           var rowIdx = Number(body.rowIndex || 0);
           var nextHidden = Boolean(body.hidden);
-          var hiddenColMap = { guesses: 8, wishes: 6, names: 4 };
-          var colNum = hiddenColMap[tab];
-          if (!colNum || rowIdx < 2) {
+          if (
+            (tab !== "guesses" && tab !== "wishes" && tab !== "names") ||
+            rowIdx < 2
+          ) {
             return jsonResponse({ error: "Invalid entry reference" });
           }
           var targetSheet = ss.getSheetByName(tab);
           if (!targetSheet || rowIdx > targetSheet.getLastRow()) {
             return jsonResponse({ error: "Row not found" });
+          }
+          var tLastCol = Math.max(1, targetSheet.getLastColumn());
+          var tHeaders = targetSheet
+            .getRange(1, 1, 1, tLastCol)
+            .getValues()[0]
+            .map(function (h) {
+              return String(h || "").trim();
+            });
+          var colNum = tHeaders.indexOf("hidden") + 1;
+          if (colNum <= 0) {
+            colNum = tHeaders.length + 1;
+            targetSheet.getRange(1, colNum).setValue("hidden");
           }
           targetSheet.getRange(rowIdx, colNum).setValue(nextHidden);
           invalidateStateCache();

@@ -343,13 +343,22 @@ export function ParentsDashboardClient({
           hidden: nextHidden,
         }),
       });
-      if (!res.ok) throw new Error('Static host fallback');
-      const json = await res.json();
-      if (json.ok && json.data) {
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.error) {
+        if (!isMockMode) {
+          setLockError(
+            json?.error || `Could not update visibility (HTTP ${res.status}).`
+          );
+          return;
+        }
+        throw new Error('Static host fallback');
+      }
+      if (json?.ok && json?.data) {
         setData(json.data);
         wishesRef.current = json.data.wishes || [];
       }
     } catch {
+      if (!isMockMode) return;
       const store = getServerStore();
       const arr =
         tab === 'guesses'
