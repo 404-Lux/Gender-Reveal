@@ -51,7 +51,7 @@ import {
   WishEntry,
 } from '@/lib/serverStore';
 
-interface ParentsDashboardData {
+export interface ParentsDashboardData {
   serverTime: string;
   revealTime: string;
   locked: boolean;
@@ -115,24 +115,39 @@ export function ParentsDashboardClient({
   babySurname = 'Basio',
   coupleNames = 'Jazzmine & Ruhmshynne Basio',
   isMockMode = false,
+  initialData = null,
 }: {
   slug: string;
   babySurname?: string;
   coupleNames?: string;
   isMockMode?: boolean;
+  initialData?: ParentsDashboardData | null;
 }) {
-  const [data, setData] = useState<ParentsDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<ParentsDashboardData | null>(initialData);
+  const [loading, setLoading] = useState(!initialData);
   const [activeTab, setActiveTab] = useState<ParentsSectionTab>('setup');
 
   // Structured Editorial Date & Time Picker State (PHT)
-  const [hasInitializedPicker, setHasInitializedPicker] = useState(false);
-  const [pickYear, setPickYear] = useState<number>(2026);
-  const [pickMonth, setPickMonth] = useState<number>(11);
-  const [pickDay, setPickDay] = useState<number>(21);
-  const [pickHour12, setPickHour12] = useState<number>(7);
-  const [pickMinute, setPickMinute] = useState<number>(0);
-  const [pickPeriod, setPickPeriod] = useState<'AM' | 'PM'>('PM');
+  const hasInitializedPickerRef = useRef(Boolean(initialData));
+  const initialParts = initialData?.revealTime
+    ? getPhilippineDateParts(initialData.revealTime)
+    : null;
+  const [pickYear, setPickYear] = useState<number>(
+    initialParts?.yearNumber ?? 2026
+  );
+  const [pickMonth, setPickMonth] = useState<number>(
+    initialParts?.monthNumber ?? 11
+  );
+  const [pickDay, setPickDay] = useState<number>(initialParts?.dayNumber ?? 21);
+  const [pickHour12, setPickHour12] = useState<number>(
+    initialParts?.hour12 ?? 7
+  );
+  const [pickMinute, setPickMinute] = useState<number>(
+    initialParts?.minuteNumber ?? 0
+  );
+  const [pickPeriod, setPickPeriod] = useState<'AM' | 'PM'>(
+    initialParts?.period ?? 'PM'
+  );
 
   const [savingTime, setSavingTime] = useState(false);
   const [timeFeedback, setTimeFeedback] = useState<string | null>(null);
@@ -176,7 +191,7 @@ export function ParentsDashboardClient({
   const [activeLetterIdx, setActiveLetterIdx] = useState<number | null>(null);
   const [envelopeAnimKey, setEnvelopeAnimKey] = useState<number>(0);
   const [typewriterChars, setTypewriterChars] = useState<number>(0);
-  const wishesRef = useRef<WishEntry[]>([]);
+  const wishesRef = useRef<WishEntry[]>(initialData?.wishes || []);
 
   const syncPickerFromIso = useCallback((isoString: string) => {
     const parts = getPhilippineDateParts(isoString);
@@ -189,6 +204,12 @@ export function ParentsDashboardClient({
   }, []);
 
   const fetchParentsData = useCallback(async () => {
+    if (
+      typeof document !== 'undefined' &&
+      document.visibilityState === 'hidden'
+    ) {
+      return;
+    }
     try {
       const res = await fetch(`/api/parents?slug=${encodeURIComponent(slug)}`, {
         cache: 'no-store',
@@ -197,28 +218,39 @@ export function ParentsDashboardClient({
       const json = (await res.json()) as ParentsDashboardData;
       setData(json);
       wishesRef.current = json.wishes || [];
-      if (!hasInitializedPicker) {
+      if (!hasInitializedPickerRef.current) {
         syncPickerFromIso(json.revealTime);
-        setHasInitializedPicker(true);
+        hasInitializedPickerRef.current = true;
       }
     } catch {
       const localJson = buildParentsStatePayload() as ParentsDashboardData;
       setData(localJson);
       wishesRef.current = localJson.wishes || [];
-      if (!hasInitializedPicker) {
+      if (!hasInitializedPickerRef.current) {
         syncPickerFromIso(localJson.revealTime);
-        setHasInitializedPicker(true);
+        hasInitializedPickerRef.current = true;
       }
     } finally {
       setLoading(false);
     }
-  }, [slug, hasInitializedPicker, syncPickerFromIso]);
+  }, [slug, syncPickerFromIso]);
 
   useEffect(() => {
-    fetchParentsData();
-    const interval = setInterval(fetchParentsData, 5000);
-    return () => clearInterval(interval);
-  }, [fetchParentsData]);
+    if (!initialData) {
+      fetchParentsData();
+    }
+    const interval = setInterval(fetchParentsData, 15000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        fetchParentsData();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [fetchParentsData, initialData]);
 
   // Continuous 3D Envelope Unsealing + Rising Letter + Single-Run Typewriter Animation
   // IMPORTANT: Depends ONLY on `activeLetterIdx` and `envelopeAnimKey` so 5s polls never restart it!

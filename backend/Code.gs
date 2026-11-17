@@ -103,6 +103,10 @@ function checkGuestRateLimit(deviceKey) {
 
 function ensureSheetsStructure() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var cache = CacheService.getScriptCache();
+  if (cache.get("SCHEMA_VERIFIED_V2") === "1") {
+    return ss;
+  }
 
   var schema = {
     settings: ["reveal_time", "gender", "locked"],
@@ -159,6 +163,7 @@ function ensureSheetsStructure() {
     }
   });
 
+  cache.put("SCHEMA_VERIFIED_V2", "1", 3600);
   return ss;
 }
 
