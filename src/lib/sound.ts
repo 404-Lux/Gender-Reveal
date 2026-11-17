@@ -359,10 +359,11 @@ class SoundManager {
     });
 
     this.howls.lullaby = new Howl({
-      src: [lullabyUri],
+      src: [encodeURI("/You'll Be in My Heart (Spotify Singles).mp3")],
+      html5: true,
       preload: true,
       loop: true,
-      volume: 0.48,
+      volume: 0.45,
     });
     this.howls.pop = new Howl({ src: [popUri], preload: true, volume: 0.82 });
     this.howls.heroPop = new Howl({
