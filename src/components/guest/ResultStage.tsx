@@ -182,7 +182,7 @@ export function ResultStage({
                 ? 'Welcome to the Celebration'
                 : guessedCorrectly
                 ? 'You guessed right'
-                : 'Lovely try'}
+                : 'Beautiful Attempt'}
             </h2>
 
             <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
