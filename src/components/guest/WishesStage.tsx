@@ -2,7 +2,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, EnvelopeSimple } from '@phosphor-icons/react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowsClockwise,
+  EnvelopeSimple,
+} from '@phosphor-icons/react';
 import { EASINGS, RevealGender } from '@/lib/tokens';
 import { soundManager, triggerHaptic } from '@/lib/sound';
 import { loadWishDraft, saveWishDraft } from '@/lib/clientQueue';
@@ -250,11 +255,19 @@ export function WishesStage({
 
             <div className="flex w-full flex-col-reverse sm:flex-row items-center justify-between gap-3 border-t border-[var(--border-hairline)] pt-6">
               <div className="flex w-full sm:w-auto items-center justify-center gap-2">
-                <TactileButton variant="ghost" onClick={onBack}>
+                <TactileButton
+                  variant="ghost"
+                  onClick={onBack}
+                  disabled={submitting}
+                >
                   <ArrowLeft size={16} weight="light" />
                   <span>Back</span>
                 </TactileButton>
-                <TactileButton variant="ghost" onClick={onSkipToWaitingRoom}>
+                <TactileButton
+                  variant="ghost"
+                  onClick={onSkipToWaitingRoom}
+                  disabled={submitting}
+                >
                   <span>Skip for Now</span>
                 </TactileButton>
               </div>
@@ -263,18 +276,35 @@ export function WishesStage({
                 type="submit"
                 variant="primary"
                 disabled={submitting}
+                aria-busy={submitting}
                 className="w-full sm:w-auto"
               >
-                <EnvelopeSimple size={17} weight="light" />
-                <span>
-                  {submitting
-                    ? 'Sealing & Saving...'
-                    : error
-                    ? 'Retry Sending Wish'
-                    : 'Seal My Keepsake Letter'}
-                </span>
+                {submitting ? (
+                  <>
+                    <ArrowsClockwise size={17} weight="light" className="animate-spin" />
+                    <span>Sealing &amp; Saving, please wait...</span>
+                  </>
+                ) : (
+                  <>
+                    <EnvelopeSimple size={17} weight="light" />
+                    <span>
+                      {error ? 'Retry Sending Wish' : 'Seal My Keepsake Letter'}
+                    </span>
+                  </>
+                )}
               </TactileButton>
             </div>
+
+            {submitting && (
+              <p
+                role="status"
+                aria-live="polite"
+                className="flex items-center justify-center gap-1.5 text-xs font-medium text-[var(--accent-primary)]"
+              >
+                <ArrowsClockwise size={13} weight="light" className="animate-spin" />
+                <span>Sealing your letter... please wait a moment.</span>
+              </p>
+            )}
           </motion.form>
         ) : (
           /* DELIBERATE, UNHURRIED 3-STEP ENVELOPE FOLD & CENTERED WAX SEAL */

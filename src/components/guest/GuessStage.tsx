@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight, ArrowsClockwise } from '@phosphor-icons/react';
 import { EASINGS, RevealGender } from '@/lib/tokens';
 import { FamilySide } from '@/lib/serverStore';
 import { soundManager, triggerHaptic } from '@/lib/sound';
@@ -333,6 +333,7 @@ export function GuessStage({
           <TactileButton
             variant="ghost"
             onClick={onBack}
+            disabled={submitting}
             className="w-full sm:w-auto"
           >
             <ArrowLeft size={16} weight="light" />
@@ -343,12 +344,33 @@ export function GuessStage({
             type="submit"
             variant="primary"
             disabled={submitting}
+            aria-busy={submitting}
             className="w-full sm:w-auto"
           >
-            <span>{submitting ? 'Saving...' : 'Continue to Wishes'}</span>
-            <ArrowRight size={16} weight="light" />
+            {submitting ? (
+              <>
+                <ArrowsClockwise size={16} weight="light" className="animate-spin" />
+                <span>Saving, please wait...</span>
+              </>
+            ) : (
+              <>
+                <span>Continue to Wishes</span>
+                <ArrowRight size={16} weight="light" />
+              </>
+            )}
           </TactileButton>
         </div>
+
+        {submitting && (
+          <p
+            role="status"
+            aria-live="polite"
+            className="flex items-center justify-center gap-1.5 text-xs font-medium text-[var(--accent-primary)]"
+          >
+            <ArrowsClockwise size={13} weight="light" className="animate-spin" />
+            <span>Saving your guess... please wait a moment.</span>
+          </p>
+        )}
       </form>
     </section>
   );
