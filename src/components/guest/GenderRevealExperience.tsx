@@ -883,6 +883,16 @@ export function GenderRevealExperience({
               babySurname={babySurname}
               tallyTotal={serverState.tally.total}
               onJoinCelebration={() => handleStageChange('guess')}
+              onReturnToWaitingRoom={
+                guestName && guestGuess
+                  ? () =>
+                      handleStageChange(
+                        serverState.revealed || isLateJoinReplay
+                          ? 'reveal'
+                          : 'waiting'
+                      )
+                  : undefined
+              }
             />
           )}
 

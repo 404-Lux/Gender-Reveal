@@ -42,6 +42,7 @@ export interface WelcomeStageProps {
   babySurname: string;
   tallyTotal: number;
   onJoinCelebration: () => void;
+  onReturnToWaitingRoom?: () => void;
   onLaunchPrototype?: () => void;
 }
 
@@ -52,6 +53,7 @@ export function WelcomeStage({
   babySurname,
   tallyTotal,
   onJoinCelebration,
+  onReturnToWaitingRoom,
 }: WelcomeStageProps) {
   const prefersReduced = useReducedMotion();
   const [calendarMenuOpen, setCalendarMenuOpen] = useState(false);
@@ -260,16 +262,36 @@ export function WelcomeStage({
           </div>
         </div>
 
-        {/* Single Clear Primary CTA */}
+        {/* Single Clear Primary CTA (or Return to Waiting Room for already-joined guests) */}
         <div className="flex w-full flex-col items-center space-y-2.5 pt-1">
-          <TactileButton
-            variant="primary"
-            onClick={onJoinCelebration}
-            className="w-full max-w-xs py-3.5 text-base shadow-sm"
-          >
-            <span>Join the celebration</span>
-            <ArrowRight size={18} weight="light" />
-          </TactileButton>
+          {onReturnToWaitingRoom ? (
+            <>
+              <TactileButton
+                variant="primary"
+                onClick={onReturnToWaitingRoom}
+                className="w-full max-w-xs py-3.5 text-base shadow-sm"
+              >
+                <span>Return to Waiting Room</span>
+                <ArrowRight size={18} weight="light" />
+              </TactileButton>
+              <button
+                type="button"
+                onClick={onJoinCelebration}
+                className="text-xs font-medium text-[var(--accent-primary)] underline-offset-4 hover:underline"
+              >
+                Edit my guess or wish
+              </button>
+            </>
+          ) : (
+            <TactileButton
+              variant="primary"
+              onClick={onJoinCelebration}
+              className="w-full max-w-xs py-3.5 text-base shadow-sm"
+            >
+              <span>Join the celebration</span>
+              <ArrowRight size={18} weight="light" />
+            </TactileButton>
+          )}
 
           <p className="text-xs text-[var(--text-secondary)]">
             {tallyTotal} family members &amp; friends have joined
