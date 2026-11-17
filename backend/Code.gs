@@ -15,8 +15,8 @@
  *   - PARENTS_SECRET_SLUG : Secret slug matching Next.js PARENTS_SECRET_SLUG
  */
 
-var TIMEZONE = 'Asia/Manila';
-var STATE_CACHE_KEY = 'PAPER_AND_LIGHT_PUBLIC_STATE_V1';
+var TIMEZONE = "Asia/Manila";
+var STATE_CACHE_KEY = "PAPER_AND_LIGHT_PUBLIC_STATE_V1";
 var STATE_CACHE_TTL_SEC = 4; // Short cache for high-concurrency polling bursts
 
 function getManilaIsoNow(dateObj) {
@@ -26,41 +26,52 @@ function getManilaIsoNow(dateObj) {
 
 function jsonResponse(payload) {
   return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(
-    ContentService.MimeType.JSON
+    ContentService.MimeType.JSON,
   );
 }
 
 function verifyProxyToken(token) {
   var props = PropertiesService.getScriptProperties();
-  var expected = props.getProperty('APPS_SCRIPT_SECRET') || '';
+  var expected = props.getProperty("APPS_SCRIPT_SECRET") || "";
   if (!expected) return false;
   return token === expected;
 }
 
 function verifyParentsSlug(slug) {
   var props = PropertiesService.getScriptProperties();
-  var expected = props.getProperty('PARENTS_SLUG') || props.getProperty('PARENTS_SECRET_SLUG') || '';
+  var expected =
+    props.getProperty("PARENTS_SLUG") ||
+    props.getProperty("PARENTS_SECRET_SLUG") ||
+    "";
   if (!expected || expected.length < 24) return false;
   return slug === expected;
 }
 
-var PROFANITY_REGEX = /\b(fuck|shit|bitch|asshole|cunt|dick|pussy|whore|slut|bastard|nigger|faggot|retard|putang\s*ina|putangina|tangina|gago|gaga|ulol|tarantado|tanga|bobo|boba|pakyu|hindot|kantot|kupal|punyeta|leche|bwisit)\b/i;
+var PROFANITY_REGEX =
+  /\b(fuck|shit|bitch|asshole|cunt|dick|pussy|whore|slut|bastard|nigger|faggot|retard|putang\s*ina|putangina|tangina|gago|gaga|ulol|tarantado|tanga|bobo|boba|pakyu|hindot|kantot|kupal|punyeta|leche|bwisit)\b/i;
 
 function cleanText(val, maxLen) {
-  if (!val) return '';
+  if (!val) return "";
   return String(val)
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
-    .replace(/[<>]/g, '')
+    .replace(/[<>]/g, "")
     .slice(0, maxLen || 250);
 }
 
 function sanitizeFormula(val) {
-  if (!val) return '';
+  if (!val) return "";
   var str = String(val);
   var ch = str.charAt(0);
-  if (ch === '=' || ch === '+' || ch === '-' || ch === '@' || ch === '\t' || ch === '\r') {
+  if (
+    ch === "=" ||
+    ch === "+" ||
+    ch === "-" ||
+    ch === "@" ||
+    ch === "\t" ||
+    ch === "\r"
+  ) {
     return "'" + str;
   }
   return str;
@@ -73,18 +84,20 @@ function isFlaggedProfanity(val) {
 
 function checkGuestRateLimit(deviceKey) {
   var cache = CacheService.getScriptCache();
-  var key = 'RL_' + Utilities.base64EncodeWebSafe(String(deviceKey || 'anon')).slice(0, 40);
+  var key =
+    "RL_" +
+    Utilities.base64EncodeWebSafe(String(deviceKey || "anon")).slice(0, 40);
   if (cache.get(key)) {
     return false;
   }
-  cache.put(key, '1', 2); // 2-second minimum spacing per device
+  cache.put(key, "1", 2); // 2-second minimum spacing per device
 
   // Global burst guard (max ~45 writes per 10s window)
-  var globalCount = Number(cache.get('RL_GLOBAL') || 0);
+  var globalCount = Number(cache.get("RL_GLOBAL") || 0);
   if (globalCount >= 45) {
     return false;
   }
-  cache.put('RL_GLOBAL', String(globalCount + 1), 10);
+  cache.put("RL_GLOBAL", String(globalCount + 1), 10);
   return true;
 }
 
@@ -92,10 +105,28 @@ function ensureSheetsStructure() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
   var schema = {
-    settings: ['reveal_time', 'gender', 'locked'],
-    guesses: ['name', 'side', 'relationship', 'guess', 'timestamp', 'device_id', 'late', 'hidden', 'flagged'],
-    wishes: ['name', 'guess', 'wish_for_baby', 'note_for_parents', 'timestamp', 'hidden', 'flagged'],
-    names: ['guest', 'suggested_name', 'timestamp', 'hidden', 'flagged'],
+    settings: ["reveal_time", "gender", "locked"],
+    guesses: [
+      "name",
+      "side",
+      "relationship",
+      "guess",
+      "timestamp",
+      "device_id",
+      "late",
+      "hidden",
+      "flagged",
+    ],
+    wishes: [
+      "name",
+      "guess",
+      "wish_for_baby",
+      "note_for_parents",
+      "timestamp",
+      "hidden",
+      "flagged",
+    ],
+    names: ["guest", "suggested_name", "timestamp", "hidden", "flagged"],
   };
 
   Object.keys(schema).forEach(function (tabName) {
@@ -103,12 +134,28 @@ function ensureSheetsStructure() {
     if (!sheet) {
       sheet = ss.insertSheet(tabName);
       sheet.appendRow(schema[tabName]);
-      if (tabName === 'settings') {
-        sheet.appendRow(['2026-11-21T19:00:00+08:00', '', false]);
+      if (tabName === "settings") {
+        sheet.appendRow(["2026-11-21T19:00:00+08:00", "", false]);
       } else {
         // Format guest text columns as plain text (@) to prevent formula evaluation
-        sheet.getRange(2, 1, 500, schema[tabName].length).setNumberFormat('@');
+        sheet.getRange(2, 1, 500, schema[tabName].length).setNumberFormat("@");
       }
+    } else if (tabName !== "settings") {
+      // Backfill any newly added schema columns (device_id, late, hidden, flagged) onto existing tabs
+      var lastCol = Math.max(1, sheet.getLastColumn());
+      var existingHeaders = sheet
+        .getRange(1, 1, 1, lastCol)
+        .getValues()[0]
+        .map(function (h) {
+          return String(h || "").trim();
+        });
+      schema[tabName].forEach(function (colName) {
+        if (existingHeaders.indexOf(colName) === -1) {
+          var nextCol = existingHeaders.length + 1;
+          sheet.getRange(1, nextCol).setValue(colName);
+          existingHeaders.push(colName);
+        }
+      });
     }
   });
 
@@ -116,27 +163,27 @@ function ensureSheetsStructure() {
 }
 
 function readSettingsRow(ss) {
-  var sheet = ss.getSheetByName('settings');
+  var sheet = ss.getSheetByName("settings");
   var values = sheet.getDataRange().getValues();
   if (values.length < 2) {
-    var defaultTime = '2026-11-21T19:00:00+08:00';
-    sheet.appendRow([defaultTime, '', false]);
+    var defaultTime = "2026-11-21T19:00:00+08:00";
+    sheet.appendRow([defaultTime, "", false]);
     return { reveal_time: defaultTime, gender: null, locked: false };
   }
   var row = values[1];
-  var rawTime = row[0] ? String(row[0]) : '2026-11-21T19:00:00+08:00';
-  var rawGender = row[1] ? String(row[1]).toLowerCase() : '';
-  var locked = row[2] === true || String(row[2]).toLowerCase() === 'true';
+  var rawTime = row[0] ? String(row[0]) : "2026-11-21T19:00:00+08:00";
+  var rawGender = row[1] ? String(row[1]).toLowerCase() : "";
+  var locked = row[2] === true || String(row[2]).toLowerCase() === "true";
 
   return {
     reveal_time: rawTime,
-    gender: rawGender === 'boy' || rawGender === 'girl' ? rawGender : null,
+    gender: rawGender === "boy" || rawGender === "girl" ? rawGender : null,
     locked: locked,
   };
 }
 
 function isTrueCell(v) {
-  return v === true || String(v).toLowerCase() === 'true';
+  return v === true || String(v).toLowerCase() === "true";
 }
 
 function readRowsAsObjects(ss, tabName) {
@@ -165,8 +212,8 @@ function buildPublicState(ss) {
     baseData = JSON.parse(cached);
   } else {
     var settings = readSettingsRow(ss);
-    var allGuesses = readRowsAsObjects(ss, 'guesses');
-    var allNames = readRowsAsObjects(ss, 'names');
+    var allGuesses = readRowsAsObjects(ss, "guesses");
+    var allNames = readRowsAsObjects(ss, "names");
 
     var visibleGuesses = allGuesses.filter(function (g) {
       return !isTrueCell(g.hidden);
@@ -181,11 +228,11 @@ function buildPublicState(ss) {
     var fatherCount = 0;
     var bothCount = 0;
     visibleGuesses.forEach(function (g) {
-      if (g.guess === 'boy') boyCount++;
-      if (g.guess === 'girl') girlCount++;
-      var s = String(g.side || 'both').toLowerCase();
-      if (s === 'mother') motherCount++;
-      else if (s === 'father') fatherCount++;
+      if (g.guess === "boy") boyCount++;
+      if (g.guess === "girl") girlCount++;
+      var s = String(g.side || "both").toLowerCase();
+      if (s === "mother") motherCount++;
+      else if (s === "father") fatherCount++;
       else bothCount++;
     });
 
@@ -216,7 +263,7 @@ function buildPublicState(ss) {
   var isRevealed =
     isTimeReached &&
     baseData.settings.locked === true &&
-    (baseData.settings.gender === 'boy' || baseData.settings.gender === 'girl');
+    (baseData.settings.gender === "boy" || baseData.settings.gender === "girl");
 
   var response = {
     serverTime: serverTimeIso,
@@ -229,8 +276,8 @@ function buildPublicState(ss) {
     guestWall: baseData.guesses.map(function (g) {
       return {
         name: g.name,
-        side: g.side || 'both',
-        relationship: g.relationship || '',
+        side: g.side || "both",
+        relationship: g.relationship || "",
         guess: g.guess,
         timestamp: g.timestamp,
       };
@@ -254,7 +301,7 @@ function buildPublicState(ss) {
         return g.guess === baseData.settings.gender && !isTrueCell(g.late);
       })
       .map(function (g) {
-        return g.relationship ? g.name + ' · ' + g.relationship : g.name;
+        return g.relationship ? g.name + " · " + g.relationship : g.name;
       });
   }
 
@@ -267,9 +314,9 @@ function invalidateStateCache() {
 
 function buildParentsDataPayload(ss) {
   var settings = readSettingsRow(ss);
-  var guesses = readRowsAsObjects(ss, 'guesses');
-  var wishes = readRowsAsObjects(ss, 'wishes').reverse();
-  var names = readRowsAsObjects(ss, 'names').reverse();
+  var guesses = readRowsAsObjects(ss, "guesses");
+  var wishes = readRowsAsObjects(ss, "wishes").reverse();
+  var names = readRowsAsObjects(ss, "names").reverse();
 
   var now = new Date();
   var revealDate = new Date(settings.reveal_time);
@@ -282,10 +329,10 @@ function buildParentsDataPayload(ss) {
     return !isTrueCell(g.hidden);
   });
   var boyCount = visibleGuesses.filter(function (g) {
-    return g.guess === 'boy';
+    return g.guess === "boy";
   }).length;
   var girlCount = visibleGuesses.filter(function (g) {
-    return g.guess === 'girl';
+    return g.guess === "girl";
   }).length;
 
   return {
@@ -304,8 +351,8 @@ function buildParentsDataPayload(ss) {
       return {
         _rowIndex: g._rowIndex,
         name: g.name,
-        side: g.side || 'both',
-        relationship: g.relationship || '',
+        side: g.side || "both",
+        relationship: g.relationship || "",
         guess: g.guess,
         timestamp: g.timestamp,
         late: isTrueCell(g.late),
@@ -342,7 +389,7 @@ function buildParentsDataPayload(ss) {
             return g.guess === settings.gender && !isTrueCell(g.late);
           })
           .map(function (g) {
-            return g.relationship ? g.name + ' · ' + g.relationship : g.name;
+            return g.relationship ? g.name + " · " + g.relationship : g.name;
           })
       : [],
   };
@@ -351,15 +398,23 @@ function buildParentsDataPayload(ss) {
 function checkIdempotencyKey(key) {
   if (!key) return false;
   var cache = CacheService.getScriptCache();
-  var cacheKey = 'IDEMP_' + String(key).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48);
+  var cacheKey =
+    "IDEMP_" +
+    String(key)
+      .replace(/[^a-zA-Z0-9_-]/g, "")
+      .slice(0, 48);
   return Boolean(cache.get(cacheKey));
 }
 
 function markIdempotencyKey(key) {
   if (!key) return;
   var cache = CacheService.getScriptCache();
-  var cacheKey = 'IDEMP_' + String(key).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48);
-  cache.put(cacheKey, '1', 600); // 10 minutes
+  var cacheKey =
+    "IDEMP_" +
+    String(key)
+      .replace(/[^a-zA-Z0-9_-]/g, "")
+      .slice(0, 48);
+  cache.put(cacheKey, "1", 600); // 10 minutes
 }
 
 /**
@@ -369,24 +424,24 @@ function doGet(e) {
   try {
     var params = (e && e.parameter) || {};
     if (!verifyProxyToken(params.token)) {
-      return jsonResponse({ error: 'Unauthorized proxy token' });
+      return jsonResponse({ error: "Unauthorized proxy token" });
     }
 
     var ss = ensureSheetsStructure();
-    var action = params.action || 'getState';
+    var action = params.action || "getState";
 
-    if (action === 'getState') {
+    if (action === "getState") {
       return jsonResponse(buildPublicState(ss));
     }
 
-    if (action === 'getParentsData') {
+    if (action === "getParentsData") {
       if (!verifyParentsSlug(params.slug)) {
-        return jsonResponse({ error: 'Not found' });
+        return jsonResponse({ error: "Not found" });
       }
       return jsonResponse(buildParentsDataPayload(ss));
     }
 
-    return jsonResponse({ error: 'Unknown GET action' });
+    return jsonResponse({ error: "Unknown GET action" });
   } catch (err) {
     return jsonResponse({ error: String(err) });
   }
@@ -397,9 +452,9 @@ function doGet(e) {
  */
 function doPost(e) {
   try {
-    var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    var body = JSON.parse((e && e.postData && e.postData.contents) || "{}");
     if (!verifyProxyToken(body.token)) {
-      return jsonResponse({ error: 'Unauthorized proxy token' });
+      return jsonResponse({ error: "Unauthorized proxy token" });
     }
 
     // Honeypot validation
@@ -408,36 +463,37 @@ function doPost(e) {
     }
 
     var ss = ensureSheetsStructure();
-    var action = body.action || '';
+    var action = body.action || "";
     var nowIso = getManilaIsoNow(new Date());
 
     // Read Actions (via POST so secret token is never in URL query strings)
-    if (action === 'getState') {
+    if (action === "getState") {
       return jsonResponse(buildPublicState(ss));
     }
 
-    if (action === 'getParentsData') {
+    if (action === "getParentsData") {
       if (!verifyParentsSlug(body.slug)) {
-        return jsonResponse({ error: 'Not found' });
+        return jsonResponse({ error: "Not found" });
       }
       return jsonResponse(buildParentsDataPayload(ss));
     }
 
     // Guest Actions (Wrapped in LockService + Idempotency Key + Rate Limit + Formula Guard + Moderation)
     if (
-      action === 'submitGuess' ||
-      action === 'submitWish' ||
-      action === 'submitName'
+      action === "submitGuess" ||
+      action === "submitWish" ||
+      action === "submitName"
     ) {
       var idempKey = cleanText(body.idempotencyKey, 64);
       if (idempKey && checkIdempotencyKey(idempKey)) {
         return jsonResponse({ ok: true, deduplicated: true });
       }
 
-      var rateKey = cleanText(body.deviceId, 64) || cleanText(body.name, 40) || 'anon';
-      if (!checkGuestRateLimit(rateKey + '_' + action)) {
+      var rateKey =
+        cleanText(body.deviceId, 64) || cleanText(body.name, 40) || "anon";
+      if (!checkGuestRateLimit(rateKey + "_" + action)) {
         return jsonResponse({
-          error: 'Please slow down a moment and try again.',
+          error: "Please slow down a moment and try again.",
           retryable: true,
         });
       }
@@ -447,9 +503,9 @@ function doPost(e) {
         guestLock.waitLock(8000);
       } catch (lockErr) {
         return jsonResponse({
-          error: 'BUSY_RETRY',
+          error: "BUSY_RETRY",
           retryable: true,
-          message: 'Server is busy, please retry in a moment.',
+          message: "Server is busy, please retry in a moment.",
         });
       }
 
@@ -460,35 +516,39 @@ function doPost(e) {
 
         var currentSettings = readSettingsRow(ss);
         var revealMs = new Date(currentSettings.reveal_time).getTime();
-        var isLateSubmission = !isNaN(revealMs) && new Date().getTime() >= revealMs;
+        var isLateSubmission =
+          !isNaN(revealMs) && new Date().getTime() >= revealMs;
 
-        if (action === 'submitGuess') {
+        if (action === "submitGuess") {
           var name = cleanText(body.name, 40);
-          var rawSide = String(body.side || 'both').toLowerCase();
+          var rawSide = String(body.side || "both").toLowerCase();
           var side =
-            rawSide === 'mother'
-              ? 'mother'
-              : rawSide === 'father'
-              ? 'father'
-              : 'both';
+            rawSide === "mother"
+              ? "mother"
+              : rawSide === "father"
+                ? "father"
+                : "both";
           var relationship = cleanText(body.relationship, 50);
-          var guess = body.guess === 'boy' ? 'boy' : 'girl';
+          var guess = body.guess === "boy" ? "boy" : "girl";
           var deviceId = cleanText(body.deviceId, 64);
-          if (!name) return jsonResponse({ error: 'Name required' });
+          if (!name) return jsonResponse({ error: "Name required" });
 
-          var flaggedGuess = isFlaggedProfanity(name) || isFlaggedProfanity(relationship);
+          var flaggedGuess =
+            isFlaggedProfanity(name) || isFlaggedProfanity(relationship);
           var hiddenGuess = flaggedGuess;
           var safeName = sanitizeFormula(name);
           var safeRel = sanitizeFormula(relationship);
 
-          var guessSheet = ss.getSheetByName('guesses');
+          var guessSheet = ss.getSheetByName("guesses");
           var existingRows = guessSheet.getDataRange().getValues();
           var normName = name.toLowerCase();
           var matchedRowIdx = -1;
 
           for (var r = 1; r < existingRows.length; r++) {
-            var rowName = String(existingRows[r][0] || '').trim().toLowerCase();
-            var rowDevice = String(existingRows[r][5] || '').trim();
+            var rowName = String(existingRows[r][0] || "")
+              .trim()
+              .toLowerCase();
+            var rowDevice = String(existingRows[r][5] || "").trim();
             if (
               (deviceId && rowDevice && rowDevice === deviceId) ||
               (!rowDevice && rowName === normName)
@@ -533,20 +593,20 @@ function doPost(e) {
           return jsonResponse({ ok: true, flagged: flaggedGuess });
         }
 
-        if (action === 'submitWish') {
-          var wName = cleanText(body.name, 40) || 'Guest';
+        if (action === "submitWish") {
+          var wName = cleanText(body.name, 40) || "Guest";
           var wGuess =
-            body.guess === 'boy' || body.guess === 'girl' ? body.guess : '';
+            body.guess === "boy" || body.guess === "girl" ? body.guess : "";
           var wishForBaby = cleanText(body.wish_for_baby, 600);
           var noteForParents = cleanText(body.note_for_parents, 600);
-          if (!wishForBaby) return jsonResponse({ error: 'Wish required' });
+          if (!wishForBaby) return jsonResponse({ error: "Wish required" });
 
           var flaggedWish =
             isFlaggedProfanity(wName) ||
             isFlaggedProfanity(wishForBaby) ||
             isFlaggedProfanity(noteForParents);
 
-          ss.getSheetByName('wishes').appendRow([
+          ss.getSheetByName("wishes").appendRow([
             sanitizeFormula(wName),
             wGuess,
             sanitizeFormula(wishForBaby),
@@ -559,17 +619,17 @@ function doPost(e) {
           return jsonResponse({ ok: true, flagged: flaggedWish });
         }
 
-        if (action === 'submitName') {
-          var nGuest = cleanText(body.guest, 40) || 'Guest';
+        if (action === "submitName") {
+          var nGuest = cleanText(body.guest, 40) || "Guest";
           var suggested = cleanText(body.suggested_name, 30);
           if (!suggested) {
-            return jsonResponse({ error: 'Name suggestion required' });
+            return jsonResponse({ error: "Name suggestion required" });
           }
 
           var flaggedName =
             isFlaggedProfanity(nGuest) || isFlaggedProfanity(suggested);
 
-          ss.getSheetByName('names').appendRow([
+          ss.getSheetByName("names").appendRow([
             sanitizeFormula(nGuest),
             sanitizeFormula(suggested),
             nowIso,
@@ -587,23 +647,23 @@ function doPost(e) {
 
     // Parents Actions (Require secret slug)
     if (
-      action === 'setRevealTime' ||
-      action === 'revealNow' ||
-      action === 'setGender' ||
-      action === 'resetGenderLock' ||
-      action === 'toggleHideEntry'
+      action === "setRevealTime" ||
+      action === "revealNow" ||
+      action === "setGender" ||
+      action === "resetGenderLock" ||
+      action === "toggleHideEntry"
     ) {
       if (!verifyParentsSlug(body.slug)) {
-        return jsonResponse({ error: 'Not found' });
+        return jsonResponse({ error: "Not found" });
       }
 
       var lock = LockService.getScriptLock();
       lock.waitLock(10000);
       try {
-        var settingsSheet = ss.getSheetByName('settings');
+        var settingsSheet = ss.getSheetByName("settings");
         var current = readSettingsRow(ss);
 
-        if (action === 'setRevealTime' || action === 'revealNow') {
+        if (action === "setRevealTime" || action === "revealNow") {
           var nextTime = cleanText(body.revealTime, 40) || nowIso;
           settingsSheet.getRange(2, 1).setValue(nextTime);
           invalidateStateCache();
@@ -611,58 +671,61 @@ function doPost(e) {
           return jsonResponse({ ok: true, revealTime: nextTime });
         }
 
-        if (action === 'toggleHideEntry') {
-          var tab = String(body.tab || '');
+        if (action === "toggleHideEntry") {
+          var tab = String(body.tab || "");
           var rowIdx = Number(body.rowIndex || 0);
           var nextHidden = Boolean(body.hidden);
           var hiddenColMap = { guesses: 8, wishes: 6, names: 4 };
           var colNum = hiddenColMap[tab];
           if (!colNum || rowIdx < 2) {
-            return jsonResponse({ error: 'Invalid entry reference' });
+            return jsonResponse({ error: "Invalid entry reference" });
           }
           var targetSheet = ss.getSheetByName(tab);
           if (!targetSheet || rowIdx > targetSheet.getLastRow()) {
-            return jsonResponse({ error: 'Row not found' });
+            return jsonResponse({ error: "Row not found" });
           }
           targetSheet.getRange(rowIdx, colNum).setValue(nextHidden);
           invalidateStateCache();
-          appendAuditLog_(ss, action, tab + ':' + rowIdx + '=' + nextHidden);
+          appendAuditLog_(ss, action, tab + ":" + rowIdx + "=" + nextHidden);
           return jsonResponse({ ok: true, hidden: nextHidden });
         }
 
-        if (action === 'resetGenderLock') {
+        if (action === "resetGenderLock") {
           var currentRevealMs = new Date(current.reveal_time).getTime();
-          if (!isNaN(currentRevealMs) && new Date().getTime() >= currentRevealMs) {
+          if (
+            !isNaN(currentRevealMs) &&
+            new Date().getTime() >= currentRevealMs
+          ) {
             return jsonResponse({
-              error: 'Cannot change gender after the reveal time has arrived.',
+              error: "Cannot change gender after the reveal time has arrived.",
             });
           }
-          settingsSheet.getRange(2, 2).setValue('');
+          settingsSheet.getRange(2, 2).setValue("");
           settingsSheet.getRange(2, 3).setValue(false);
           invalidateStateCache();
-          appendAuditLog_(ss, action, 'unlocked');
+          appendAuditLog_(ss, action, "unlocked");
           return jsonResponse({ ok: true, locked: false });
         }
 
-        if (action === 'setGender') {
+        if (action === "setGender") {
           if (current.locked) {
             return jsonResponse({
-              error: 'Gender is already locked and cannot be modified.',
+              error: "Gender is already locked and cannot be modified.",
             });
           }
           var chosenGender =
-            body.gender === 'boy'
-              ? 'boy'
-              : body.gender === 'girl'
-              ? 'girl'
-              : null;
+            body.gender === "boy"
+              ? "boy"
+              : body.gender === "girl"
+                ? "girl"
+                : null;
           if (!chosenGender) {
-            return jsonResponse({ error: 'Invalid gender choice' });
+            return jsonResponse({ error: "Invalid gender choice" });
           }
           settingsSheet.getRange(2, 2).setValue(chosenGender);
           settingsSheet.getRange(2, 3).setValue(true);
           invalidateStateCache();
-          appendAuditLog_(ss, action, 'locked');
+          appendAuditLog_(ss, action, "locked");
           return jsonResponse({ ok: true, locked: true });
         }
       } finally {
@@ -670,22 +733,22 @@ function doPost(e) {
       }
     }
 
-    if (action === 'health') {
+    if (action === "health") {
       var settingsHealth = readSettingsRow(ss);
       return jsonResponse({
         ok: true,
         serverTime: new Date().toISOString(),
         locked: settingsHealth.locked,
         tabsOk: Boolean(
-          ss.getSheetByName('settings') &&
-            ss.getSheetByName('guesses') &&
-            ss.getSheetByName('wishes') &&
-            ss.getSheetByName('names')
+          ss.getSheetByName("settings") &&
+          ss.getSheetByName("guesses") &&
+          ss.getSheetByName("wishes") &&
+          ss.getSheetByName("names"),
         ),
       });
     }
 
-    return jsonResponse({ error: 'Unknown POST action' });
+    return jsonResponse({ error: "Unknown POST action" });
   } catch (err) {
     return jsonResponse({ error: String(err) });
   }
@@ -696,13 +759,17 @@ function doPost(e) {
  */
 function appendAuditLog_(ss, action, detail) {
   try {
-    var sheet = ss.getSheetByName('logs');
+    var sheet = ss.getSheetByName("logs");
     if (!sheet) {
-      sheet = ss.insertSheet('logs');
+      sheet = ss.insertSheet("logs");
       sheet.hideSheet();
-      sheet.appendRow(['timestamp', 'action', 'detail']);
+      sheet.appendRow(["timestamp", "action", "detail"]);
     }
-    sheet.appendRow([new Date().toISOString(), String(action), String(detail || '')]);
+    sheet.appendRow([
+      new Date().toISOString(),
+      String(action),
+      String(detail || ""),
+    ]);
     var lastRow = sheet.getLastRow();
     if (lastRow > 501) {
       sheet.deleteRows(2, lastRow - 501);
@@ -718,7 +785,7 @@ function appendAuditLog_(ss, action, detail) {
  */
 function backupSnapshot() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var folderName = 'Paper & Light Backups';
+  var folderName = "Paper & Light Backups";
   var folders = DriveApp.getFoldersByName(folderName);
   var folder = folders.hasNext()
     ? folders.next()
@@ -726,10 +793,10 @@ function backupSnapshot() {
 
   var stamp = Utilities.formatDate(
     new Date(),
-    'Asia/Manila',
-    'yyyy-MM-dd_HHmm'
+    "Asia/Manila",
+    "yyyy-MM-dd_HHmm",
   );
-  var copyName = ss.getName() + ' - Backup ' + stamp;
+  var copyName = ss.getName() + " - Backup " + stamp;
   DriveApp.getFileById(ss.getId()).makeCopy(copyName, folder);
 
   // Keep only the 24 most recent backups
