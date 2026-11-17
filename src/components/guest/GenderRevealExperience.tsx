@@ -212,6 +212,22 @@ export function GenderRevealExperience({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('reset') === '1') {
+        try {
+          localStorage.clear();
+        } catch {
+          // Ignore
+        }
+        try {
+          window.history.replaceState({}, '', window.location.pathname);
+        } catch {
+          // Ignore
+        }
+        setStage('welcome');
+        return;
+      }
+
       const PL_APP_VERSION = '2026.11.2';
       if (localStorage.getItem('pl_v2_app_version') !== PL_APP_VERSION) {
         const legacyKeys = [
@@ -249,7 +265,6 @@ export function GenderRevealExperience({
         }
       }
 
-      const params = new URLSearchParams(window.location.search);
       const viewParam = params.get('view') as GuestFlowStage | null;
       const validStages: GuestFlowStage[] = isMockMode
         ? [
@@ -941,7 +956,6 @@ export function GenderRevealExperience({
               isReconnecting={isReconnecting}
               onSubmitNameSuggestion={handleNameSuggestionSubmit}
               onSubmitAdvice={handleAdviceSubmit}
-              onBackToCover={() => handleStageChange('welcome')}
               onTriggerDemoRevealNow={
                 isMockMode ? () => handleStageChange('reveal') : undefined
               }
