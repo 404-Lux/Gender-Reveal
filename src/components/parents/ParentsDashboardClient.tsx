@@ -497,17 +497,30 @@ export function ParentsDashboardClient({
           gender: pendingGender,
         }),
       });
-      if (!res.ok) throw new Error('Static host fallback');
-      const json = await res.json();
-      if (json.error) {
-        setLockError(json.error || 'Could not lock gender.');
-      } else if (json.data) {
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.error) {
+        if (!isMockMode) {
+          setLockError(
+            json?.error ||
+              `Server rejected lock (HTTP ${res.status}). Check PARENTS_SLUG in Apps Script Script Properties.`
+          );
+          return;
+        }
+        throw new Error('Static host fallback');
+      }
+      if (json?.data) {
         setData(json.data);
         soundManager.play('seal', 0.95);
         setConfirmStepOpen(false);
         setPendingGender(null);
       }
     } catch {
+      if (!isMockMode) {
+        setLockError(
+          'Could not reach the server to lock the gender. Please check your connection and try again.'
+        );
+        return;
+      }
       const store = getServerStore();
       store.settings.gender = pendingGender;
       store.settings.locked = true;
@@ -534,13 +547,26 @@ export function ParentsDashboardClient({
           action: 'resetGenderLock',
         }),
       });
-      if (!res.ok) throw new Error('Static host fallback');
-      const json = await res.json();
-      if (json.ok && json.data) {
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.error) {
+        if (!isMockMode) {
+          setLockError(
+            json?.error ||
+              `Could not unlock gender (HTTP ${res.status}).`
+          );
+          return;
+        }
+        throw new Error('Static host fallback');
+      }
+      if (json?.ok && json?.data) {
         setData(json.data);
         soundManager.play('tick', 0.95);
       }
     } catch {
+      if (!isMockMode) {
+        setLockError('Could not reach the server to unlock. Please try again.');
+        return;
+      }
       const store = getServerStore();
       store.settings.gender = null;
       store.settings.locked = false;
