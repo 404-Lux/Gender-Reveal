@@ -42,7 +42,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   ),
-  title: `Baby ${babySurname} — Virtual Gender Reveal | Paper & Light`,
+  title: 'Gender Reveal',
   description: `Join ${coupleNames} and family across the Philippines for a synced balloon-pop gender reveal, keepsake wishes, and themed photobooth.`,
   openGraph: {
     title: `Baby ${babySurname} — Virtual Gender Reveal`,

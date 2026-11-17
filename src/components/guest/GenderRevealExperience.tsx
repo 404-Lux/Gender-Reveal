@@ -614,7 +614,7 @@ export function GenderRevealExperience({
     } else if (activeGender === 'girl') {
       document.title = `It's a Girl! · Baby ${babySurname}`;
     } else {
-      document.title = `Paper & Light · Baby ${babySurname} Gender Reveal`;
+      document.title = 'Gender Reveal';
     }
 
     const themeMeta = document.querySelector('meta[name="theme-color"]');
