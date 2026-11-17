@@ -346,7 +346,7 @@ export function BalloonPopStage({
       rim: paletteItem.rim,
     };
 
-    setRisingBalloons((prev) => [...prev.slice(-7), newBalloon]);
+    setRisingBalloons((prev) => [...prev.slice(-11), newBalloon]);
   }, []);
 
   useEffect(() => {
@@ -356,13 +356,13 @@ export function BalloonPopStage({
     soundManager.play('swell');
 
     setRisingBalloons([]);
-    const initTimers = [0, 320, 660].map((delay) =>
+    const initTimers = [0, 180, 360, 560, 780].map((delay) =>
       setTimeout(spawnRisingBalloon, delay)
     );
 
     const spawner = setInterval(
       spawnRisingBalloon,
-      isLowEndDevice() ? 880 : 720
+      isLowEndDevice() ? 650 : 480
     );
 
     const countdownTimer = setInterval(() => {
