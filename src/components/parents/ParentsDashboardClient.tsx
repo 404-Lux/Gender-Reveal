@@ -1802,12 +1802,30 @@ export function ParentsDashboardClient({
                           !activeLetter.hidden
                         )
                       }
-                      className="rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-1 text-[10px] font-medium text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+                      className={`rounded-full border px-3 py-1 text-[10px] font-medium transition disabled:opacity-50 ${
+                        activeLetter.hidden
+                          ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/15 text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/25'
+                          : 'border-[var(--border-hairline)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]'
+                      }`}
                     >
-                      {activeLetter.hidden ? 'Unhide Wish' : 'Hide Wish'}
+                      {togglingHideKey ===
+                      `wishes:${activeLetter._rowIndex ?? activeLetterIdx + 2}`
+                        ? activeLetter.hidden
+                          ? 'Unhiding...'
+                          : 'Hiding...'
+                        : activeLetter.hidden
+                        ? 'Unhide Wish'
+                        : 'Hide Wish'}
                     </button>
                   </div>
                 </div>
+
+                {activeLetter.hidden && (
+                  <div className="rounded-xl border border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/10 px-3.5 py-2 text-left text-xs font-medium text-[var(--accent-primary)]">
+                    This wish is currently hidden from the Postbox and Memory
+                    Book PDF. Tap &ldquo;Unhide Wish&rdquo; above to restore it.
+                  </div>
+                )}
 
                 {/* Typewriter Wish for Baby Basio */}
                 <div className="space-y-1.5 text-left">
