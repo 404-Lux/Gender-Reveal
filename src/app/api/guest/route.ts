@@ -152,10 +152,10 @@ export async function POST(req: NextRequest) {
         sanitizeSheetFormula(collapseControlChars(body.name, 40)) ||
         'A Loving Guest';
       const wishForBaby = sanitizeSheetFormula(
-        collapseControlChars(body.wish_for_baby, 600)
+        collapseControlChars(body.wish_for_baby, 25000)
       );
       const noteForParents = sanitizeSheetFormula(
-        collapseControlChars(body.note_for_parents, 600)
+        collapseControlChars(body.note_for_parents, 25000)
       );
       const cleanIdempKey = sanitizeText(idempotencyKey, 64);
       const guess: RevealGender | undefined =

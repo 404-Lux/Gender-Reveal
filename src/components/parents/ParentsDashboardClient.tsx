@@ -1864,11 +1864,13 @@ export function ParentsDashboardClient({
                   <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--text-secondary)]">
                     For Baby {babySurname}:
                   </p>
-                  <p className="min-h-[76px] break-words font-display-editorial text-base sm:text-xl leading-relaxed text-[var(--text-primary)]">
-                    &ldquo;
-                    {sliceGraphemes(activeLetter.wish_for_baby, typewriterChars)}
-                    &rdquo;
-                  </p>
+                  <div className="max-h-[180px] sm:max-h-[220px] overflow-y-auto pr-2">
+                    <p className="min-h-[76px] break-words font-display-editorial text-base sm:text-xl leading-relaxed text-[var(--text-primary)]">
+                      &ldquo;
+                      {sliceGraphemes(activeLetter.wish_for_baby, typewriterChars)}
+                      &rdquo;
+                    </p>
+                  </div>
                 </div>
 
                 {/* Typewriter Personal Note for Jazzmine & Ruhmshynne Basio */}
@@ -1877,12 +1879,14 @@ export function ParentsDashboardClient({
                     <p className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--accent-primary)]">
                       Personal Note for {coupleNames}:
                     </p>
-                    <p className="break-words text-xs sm:text-sm leading-relaxed text-[var(--text-primary)]">
-                      {sliceGraphemes(
-                        activeLetter.note_for_parents,
-                        Math.max(0, typewriterChars - activeLetterWishLen)
-                      )}
-                    </p>
+                    <div className="max-h-[140px] sm:max-h-[170px] overflow-y-auto pr-2">
+                      <p className="break-words text-xs sm:text-sm leading-relaxed text-[var(--text-primary)]">
+                        {sliceGraphemes(
+                          activeLetter.note_for_parents,
+                          Math.max(0, typewriterChars - activeLetterWishLen)
+                        )}
+                      </p>
+                    </div>
                   </div>
                 )}
 

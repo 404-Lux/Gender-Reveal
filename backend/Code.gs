@@ -602,8 +602,8 @@ function doPost(e) {
           var wName = cleanText(body.name, 40) || "Guest";
           var wGuess =
             body.guess === "boy" || body.guess === "girl" ? body.guess : "";
-          var wishForBaby = cleanText(body.wish_for_baby, 600);
-          var noteForParents = cleanText(body.note_for_parents, 600);
+          var wishForBaby = cleanText(body.wish_for_baby, 25000);
+          var noteForParents = cleanText(body.note_for_parents, 25000);
           if (!wishForBaby) return jsonResponse({ error: "Wish required" });
 
           var flaggedWish =
@@ -813,7 +813,7 @@ function backupSnapshot() {
     new Date(),
     "Asia/Manila",
     "yyyy-MM-dd_HHmm",
-  );
+  );  
   var copyName = ss.getName() + " - Backup " + stamp;
   DriveApp.getFileById(ss.getId()).makeCopy(copyName, folder);
 

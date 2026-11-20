@@ -204,9 +204,8 @@ export function WishesStage({
               </label>
               <textarea
                 id="wish-baby-textarea"
-                rows={3}
+                rows={4}
                 required
-                maxLength={500}
                 value={wishForBaby}
                 onChange={(e) => setWishForBaby(e.target.value)}
                 placeholder="Write your wish or blessing for the little one..."
@@ -233,8 +232,7 @@ export function WishesStage({
                   </label>
                   <textarea
                     id="note-parents-textarea"
-                    rows={2}
-                    maxLength={400}
+                    rows={3}
                     value={noteForParents}
                     onChange={(e) => setNoteForParents(e.target.value)}
                     placeholder="Words of encouragement or excitement for Mommy & Daddy..."
