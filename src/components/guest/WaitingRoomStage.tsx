@@ -324,6 +324,11 @@ export function WaitingRoomStage({
             </span>
           </TactileButton>
 
+          <p className="max-w-xs text-[11px] leading-relaxed text-[var(--text-secondary)]">
+            Tip: Before you open the reveal, feel free to film your reaction as
+            a memory to keep and send to Jazzmine or Ruhmshynne.
+          </p>
+
           <TactileButton
             variant="secondary"
             onClick={handleOpenNameSuggestion}
