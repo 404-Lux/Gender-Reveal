@@ -56,10 +56,29 @@ export function WishesStage({
 
   useEffect(() => {
     const draft = loadWishDraft();
-    if (draft.wishForBaby) setWishForBaby(draft.wishForBaby);
-    if (draft.noteForParents) {
-      setNoteForParents(draft.noteForParents);
-      setShowParentNoteField(true);
+    if (draft.wishForBaby || draft.noteForParents) {
+      if (draft.wishForBaby) setWishForBaby(draft.wishForBaby);
+      if (draft.noteForParents) {
+        setNoteForParents(draft.noteForParents);
+        setShowParentNoteField(true);
+      }
+    } else {
+      try {
+        const lastRaw = localStorage.getItem('pl_v2_last_wish');
+        if (lastRaw) {
+          const parsed = JSON.parse(lastRaw) as {
+            wishForBaby?: string;
+            noteForParents?: string;
+          };
+          if (parsed.wishForBaby) setWishForBaby(parsed.wishForBaby);
+          if (parsed.noteForParents) {
+            setNoteForParents(parsed.noteForParents);
+            setShowParentNoteField(true);
+          }
+        }
+      } catch {
+        // Ignore
+      }
     }
     return () => {
       timersRef.current.forEach(clearTimeout);
@@ -101,8 +120,19 @@ export function WishesStage({
       return;
     }
 
-    // Clear draft once acknowledged by server
+    // Clear active draft and remember last submitted wish so guest can edit it later
     saveWishDraft('', '');
+    try {
+      localStorage.setItem(
+        'pl_v2_last_wish',
+        JSON.stringify({
+          wishForBaby: wishForBaby.trim(),
+          noteForParents: noteForParents.trim(),
+        })
+      );
+    } catch {
+      // Ignore
+    }
     setSubmitting(false);
 
     // Step 1: Slide letter into pocket (0s -> 1.15s)

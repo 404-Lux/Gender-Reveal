@@ -59,6 +59,7 @@ export interface WaitingRoomStageProps {
   onSubmitAdvice?: (advice: string) => Promise<void>;
   canReveal?: boolean;
   onStartReveal?: () => void;
+  onEditWish?: () => void;
   onTriggerDemoRevealNow?: () => void;
 }
 
@@ -75,6 +76,7 @@ export function WaitingRoomStage({
   onSubmitNameSuggestion,
   canReveal = false,
   onStartReveal,
+  onEditWish,
   onTriggerDemoRevealNow,
 }: WaitingRoomStageProps) {
   const [isMuted, setIsMuted] = useState(soundManager.getMuted());
@@ -341,6 +343,19 @@ export function WaitingRoomStage({
             />
             <span>Suggest a Name for Baby {babySurname}</span>
           </TactileButton>
+
+          {onEditWish && (
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic(10);
+                onEditWish();
+              }}
+              className="pt-1 text-xs font-medium text-[var(--accent-primary)] underline-offset-4 hover:underline"
+            >
+              Edit My Message / Wish
+            </button>
+          )}
         </div>
       </div>
 

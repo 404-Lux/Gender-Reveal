@@ -947,6 +947,7 @@ export function GenderRevealExperience({
                 hasAutoEnteredRevealRef.current = true;
                 handleStageChange('reveal');
               }}
+              onEditWish={() => handleStageChange('wishes')}
               onTriggerDemoRevealNow={
                 isMockMode ? () => handleStageChange('reveal') : undefined
               }

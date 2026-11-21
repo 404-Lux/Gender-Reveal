@@ -158,6 +158,7 @@ export async function POST(req: NextRequest) {
         collapseControlChars(body.note_for_parents, 25000)
       );
       const cleanIdempKey = sanitizeText(idempotencyKey, 64);
+      const cleanDeviceId = sanitizeText(deviceId, 64);
       const guess: RevealGender | undefined =
         body.guess === 'boy' || body.guess === 'girl' ? body.guess : undefined;
 
@@ -183,6 +184,7 @@ export async function POST(req: NextRequest) {
           guess,
           wish_for_baby: wishForBaby,
           note_for_parents: noteForParents,
+          deviceId: cleanDeviceId,
           idempotencyKey: cleanIdempKey,
           flagged,
           hidden,

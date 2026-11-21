@@ -104,7 +104,7 @@ function checkGuestRateLimit(deviceKey) {
 function ensureSheetsStructure() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var cache = CacheService.getScriptCache();
-  if (cache.get("SCHEMA_VERIFIED_V2") === "1") {
+  if (cache.get("SCHEMA_VERIFIED_V3") === "1") {
     return ss;
   }
 
@@ -129,6 +129,7 @@ function ensureSheetsStructure() {
       "timestamp",
       "hidden",
       "flagged",
+      "device_id",
     ],
     names: ["guest", "suggested_name", "timestamp", "hidden", "flagged"],
   };
@@ -163,7 +164,7 @@ function ensureSheetsStructure() {
     }
   });
 
-  cache.put("SCHEMA_VERIFIED_V2", "1", 3600);
+  cache.put("SCHEMA_VERIFIED_V3", "1", 3600);
   return ss;
 }
 
@@ -604,6 +605,7 @@ function doPost(e) {
             body.guess === "boy" || body.guess === "girl" ? body.guess : "";
           var wishForBaby = cleanText(body.wish_for_baby, 25000);
           var noteForParents = cleanText(body.note_for_parents, 25000);
+          var wDeviceId = cleanText(body.deviceId, 64);
           if (!wishForBaby) return jsonResponse({ error: "Wish required" });
 
           var flaggedWish =
@@ -611,15 +613,52 @@ function doPost(e) {
             isFlaggedProfanity(wishForBaby) ||
             isFlaggedProfanity(noteForParents);
 
-          ss.getSheetByName("wishes").appendRow([
-            sanitizeFormula(wName),
-            wGuess,
-            sanitizeFormula(wishForBaby),
-            sanitizeFormula(noteForParents),
-            nowIso,
-            flaggedWish,
-            flaggedWish,
-          ]);
+          var wishesSheet = ss.getSheetByName("wishes");
+          var wishRows = wishesSheet.getDataRange().getValues();
+          var wishHeaders = wishRows[0] || [];
+          var wDevColIdx = wishHeaders.indexOf("device_id");
+          var existingWishRow = -1;
+          var normalizedWName = wName.toLowerCase();
+
+          for (var wr = wishRows.length - 1; wr >= 1; wr--) {
+            var rowWDev = wDevColIdx >= 0 ? String(wishRows[wr][wDevColIdx] || "") : "";
+            var rowWName = String(wishRows[wr][0] || "").trim().toLowerCase();
+            if (
+              (wDeviceId && rowWDev && rowWDev === wDeviceId) ||
+              (normalizedWName && rowWName === normalizedWName)
+            ) {
+              existingWishRow = wr + 1;
+              break;
+            }
+          }
+
+          if (existingWishRow > 1) {
+            wishesSheet
+              .getRange(existingWishRow, 1, 1, 8)
+              .setValues([
+                [
+                  sanitizeFormula(wName),
+                  wGuess,
+                  sanitizeFormula(wishForBaby),
+                  sanitizeFormula(noteForParents),
+                  nowIso,
+                  flaggedWish,
+                  flaggedWish,
+                  wDeviceId,
+                ],
+              ]);
+          } else {
+            wishesSheet.appendRow([
+              sanitizeFormula(wName),
+              wGuess,
+              sanitizeFormula(wishForBaby),
+              sanitizeFormula(noteForParents),
+              nowIso,
+              flaggedWish,
+              flaggedWish,
+              wDeviceId,
+            ]);
+          }
           markIdempotencyKey(idempKey);
           return jsonResponse({ ok: true, flagged: flaggedWish });
         }
