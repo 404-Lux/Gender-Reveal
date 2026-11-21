@@ -271,30 +271,35 @@ export function WishesStage({
               >
                 Your Message for Baby {babySurname} *
               </label>
-              {loadingSavedWish && (
-                <p
+              {loadingSavedWish ? (
+                <div
                   role="status"
                   aria-live="polite"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-primary)]/35 bg-[var(--accent-primary)]/10 px-3 py-1 text-xs font-medium text-[var(--accent-primary)]"
+                  className="flex min-h-[132px] w-full flex-col items-center justify-center gap-2.5 rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/50 p-6 text-center"
                 >
-                  <ArrowsClockwise size={13} weight="light" className="animate-spin" />
-                  <span>Loading your saved message, please wait...</span>
-                </p>
+                  <ArrowsClockwise
+                    size={24}
+                    weight="light"
+                    className="animate-spin text-[var(--accent-primary)]"
+                  />
+                  <span className="text-sm font-medium text-[var(--text-primary)]">
+                    Loading your saved message...
+                  </span>
+                  <span className="text-xs text-[var(--text-secondary)]">
+                    Please wait a moment
+                  </span>
+                </div>
+              ) : (
+                <textarea
+                  id="wish-baby-textarea"
+                  rows={4}
+                  required
+                  value={wishForBaby}
+                  onChange={(e) => setWishForBaby(e.target.value)}
+                  placeholder="Write your wish or blessing for the little one..."
+                  className="w-full select-text resize-none rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/40 p-4 font-display-editorial text-base sm:text-lg text-[var(--text-primary)] placeholder:font-sans placeholder:text-sm placeholder:text-[var(--text-secondary)]/55 focus:border-[var(--accent-primary)] focus:bg-[var(--bg-surface)] focus:outline-none"
+                />
               )}
-              <textarea
-                id="wish-baby-textarea"
-                rows={4}
-                required
-                disabled={loadingSavedWish}
-                value={wishForBaby}
-                onChange={(e) => setWishForBaby(e.target.value)}
-                placeholder={
-                  loadingSavedWish
-                    ? 'Loading your saved message...'
-                    : 'Write your wish or blessing for the little one...'
-                }
-                className="w-full select-text resize-none rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/40 p-4 font-display-editorial text-base sm:text-lg text-[var(--text-primary)] placeholder:font-sans placeholder:text-sm placeholder:text-[var(--text-secondary)]/55 focus:border-[var(--accent-primary)] focus:bg-[var(--bg-surface)] focus:outline-none disabled:opacity-60"
-              />
             </div>
 
             <div className="w-full text-left">
