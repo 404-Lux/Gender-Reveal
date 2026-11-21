@@ -486,7 +486,10 @@ function doPost(e) {
 
     if (action === "getMyWish") {
       var myDevId = cleanText(body.deviceId, 64);
-      var myName = cleanText(body.name, 40).toLowerCase();
+      var myNameBase = cleanText(body.name, 40)
+        .split("·")[0]
+        .trim()
+        .toLowerCase();
       var wSheet = ss.getSheetByName("wishes");
       if (!wSheet) return jsonResponse({ ok: true, wish: null });
       var wRows = wSheet.getDataRange().getValues();
@@ -494,10 +497,11 @@ function doPost(e) {
       var devIdx = wHeads.indexOf("device_id");
       for (var r = wRows.length - 1; r >= 1; r--) {
         var rDev = devIdx >= 0 ? String(wRows[r][devIdx] || "") : "";
-        var rName = String(wRows[r][0] || "").trim().toLowerCase();
+        var rNameFull = String(wRows[r][0] || "").trim().toLowerCase();
+        var rNameBase = rNameFull.split("·")[0].trim();
         if (
           (myDevId && rDev && rDev === myDevId) ||
-          (myName && rName === myName)
+          (myNameBase && (rNameFull === myNameBase || rNameBase === myNameBase))
         ) {
           return jsonResponse({
             ok: true,
@@ -646,13 +650,16 @@ function doPost(e) {
           var wDevColIdx = wishHeaders.indexOf("device_id");
           var existingWishRow = -1;
           var normalizedWName = wName.toLowerCase();
+          var normalizedWBase = normalizedWName.split("·")[0].trim();
 
           for (var wr = wishRows.length - 1; wr >= 1; wr--) {
             var rowWDev = wDevColIdx >= 0 ? String(wishRows[wr][wDevColIdx] || "") : "";
             var rowWName = String(wishRows[wr][0] || "").trim().toLowerCase();
+            var rowWBase = rowWName.split("·")[0].trim();
             if (
               (wDeviceId && rowWDev && rowWDev === wDeviceId) ||
-              (normalizedWName && rowWName === normalizedWName)
+              (normalizedWBase &&
+                (rowWName === normalizedWName || rowWBase === normalizedWBase))
             ) {
               existingWishRow = wr + 1;
               break;
