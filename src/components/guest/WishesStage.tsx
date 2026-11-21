@@ -10,7 +10,11 @@ import {
 } from '@phosphor-icons/react';
 import { EASINGS, RevealGender } from '@/lib/tokens';
 import { soundManager, triggerHaptic } from '@/lib/sound';
-import { loadWishDraft, saveWishDraft } from '@/lib/clientQueue';
+import {
+  getOrCreateDeviceId,
+  loadWishDraft,
+  saveWishDraft,
+} from '@/lib/clientQueue';
 import { WaxSealSvg } from '@/components/shared/PaperIllustrations';
 import { SplitText, TactileButton } from '@/components/shared/MotionPrimitives';
 
@@ -55,8 +59,10 @@ export function WishesStage({
   const timersRef = useRef<NodeJS.Timeout[]>([]);
 
   useEffect(() => {
+    let hasLocal = false;
     const draft = loadWishDraft();
     if (draft.wishForBaby || draft.noteForParents) {
+      hasLocal = true;
       if (draft.wishForBaby) setWishForBaby(draft.wishForBaby);
       if (draft.noteForParents) {
         setNoteForParents(draft.noteForParents);
@@ -70,20 +76,48 @@ export function WishesStage({
             wishForBaby?: string;
             noteForParents?: string;
           };
-          if (parsed.wishForBaby) setWishForBaby(parsed.wishForBaby);
-          if (parsed.noteForParents) {
-            setNoteForParents(parsed.noteForParents);
-            setShowParentNoteField(true);
+          if (parsed.wishForBaby || parsed.noteForParents) {
+            hasLocal = true;
+            if (parsed.wishForBaby) setWishForBaby(parsed.wishForBaby);
+            if (parsed.noteForParents) {
+              setNoteForParents(parsed.noteForParents);
+              setShowParentNoteField(true);
+            }
           }
         }
       } catch {
         // Ignore
       }
     }
+
+    let cancelled = false;
+    if (!hasLocal && guestName) {
+      fetch('/api/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'getMyWish',
+          deviceId: getOrCreateDeviceId(),
+          name: guestName,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json) => {
+          if (cancelled || !json?.wish) return;
+          setWishForBaby((prev) => prev || json.wish.wish_for_baby || '');
+          if (json.wish.note_for_parents) {
+            setNoteForParents((prev) => prev || json.wish.note_for_parents || '');
+            setShowParentNoteField(true);
+          }
+        })
+        .catch(() => {});
+    }
+
     return () => {
+      cancelled = true;
       timersRef.current.forEach(clearTimeout);
     };
-  }, []);
+  }, [guestName]);
 
   useEffect(() => {
     if (foldPhase === 'writing') {

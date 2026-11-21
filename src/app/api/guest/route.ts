@@ -333,6 +333,38 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (action === 'getMyWish') {
+      const cleanDeviceId = sanitizeText(deviceId, 64);
+      const name = collapseControlChars(body.name, 40);
+
+      if (hasAppsScript) {
+        const proxyRes = await callAppsScriptProxy<{
+          ok?: boolean;
+          wish?: { wish_for_baby: string; note_for_parents: string } | null;
+        }>('POST', 'getMyWish', {
+          deviceId: cleanDeviceId,
+          name,
+        });
+        return NextResponse.json({
+          ok: true,
+          wish: proxyRes?.wish || null,
+        });
+      }
+
+      const found = store.wishes.find(
+        (w) => name && w.name.toLowerCase() === name.toLowerCase()
+      );
+      return NextResponse.json({
+        ok: true,
+        wish: found
+          ? {
+              wish_for_baby: found.wish_for_baby,
+              note_for_parents: found.note_for_parents || '',
+            }
+          : null,
+      });
+    }
+
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
   } catch {
     return NextResponse.json(

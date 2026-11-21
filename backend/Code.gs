@@ -484,6 +484,33 @@ function doPost(e) {
       return jsonResponse(buildParentsDataPayload(ss));
     }
 
+    if (action === "getMyWish") {
+      var myDevId = cleanText(body.deviceId, 64);
+      var myName = cleanText(body.name, 40).toLowerCase();
+      var wSheet = ss.getSheetByName("wishes");
+      if (!wSheet) return jsonResponse({ ok: true, wish: null });
+      var wRows = wSheet.getDataRange().getValues();
+      var wHeads = wRows[0] || [];
+      var devIdx = wHeads.indexOf("device_id");
+      for (var r = wRows.length - 1; r >= 1; r--) {
+        var rDev = devIdx >= 0 ? String(wRows[r][devIdx] || "") : "";
+        var rName = String(wRows[r][0] || "").trim().toLowerCase();
+        if (
+          (myDevId && rDev && rDev === myDevId) ||
+          (myName && rName === myName)
+        ) {
+          return jsonResponse({
+            ok: true,
+            wish: {
+              wish_for_baby: String(wRows[r][2] || ""),
+              note_for_parents: String(wRows[r][3] || ""),
+            },
+          });
+        }
+      }
+      return jsonResponse({ ok: true, wish: null });
+    }
+
     // Guest Actions (Wrapped in LockService + Idempotency Key + Rate Limit + Formula Guard + Moderation)
     if (
       action === "submitGuess" ||
