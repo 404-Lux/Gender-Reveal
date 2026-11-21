@@ -545,36 +545,18 @@ export function GenderRevealExperience({
     stage,
   ]);
 
-  useEffect(() => {
-    if (
-      stage === 'waiting' &&
-      (serverState.locked || isMockMode) &&
-      (countdown.isFinalTenSeconds || countdown.isExpired) &&
-      !hasAutoEnteredRevealRef.current
-    ) {
-      hasAutoEnteredRevealRef.current = true;
-      setStage('reveal');
-      try {
-        localStorage.setItem('pl_v2_guest_stage', 'reveal');
-      } catch {
-        // Ignore
-      }
-    }
-  }, [
-    stage,
-    serverState.locked,
-    isMockMode,
-    countdown.isFinalTenSeconds,
-    countdown.isExpired,
-  ]);
-
   const handleStageChange = (nextStage: GuestFlowStage) => {
     const isPostRevealStage =
       nextStage === 'reveal' ||
       nextStage === 'result' ||
       nextStage === 'photobooth' ||
       nextStage === 'prototype';
-    if (!isMockMode && !serverState.revealed && isPostRevealStage) {
+    const isRevealUnlocked = Boolean(
+      isMockMode ||
+        serverState.revealed ||
+        (countdown.isExpired && serverState.locked)
+    );
+    if (!isRevealUnlocked && isPostRevealStage) {
       return;
     }
 
@@ -956,6 +938,15 @@ export function GenderRevealExperience({
               isReconnecting={isReconnecting}
               onSubmitNameSuggestion={handleNameSuggestionSubmit}
               onSubmitAdvice={handleAdviceSubmit}
+              canReveal={Boolean(
+                isMockMode ||
+                  serverState.revealed ||
+                  (countdown.isExpired && serverState.locked)
+              )}
+              onStartReveal={() => {
+                hasAutoEnteredRevealRef.current = true;
+                handleStageChange('reveal');
+              }}
               onTriggerDemoRevealNow={
                 isMockMode ? () => handleStageChange('reveal') : undefined
               }

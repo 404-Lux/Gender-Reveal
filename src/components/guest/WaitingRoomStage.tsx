@@ -57,6 +57,8 @@ export interface WaitingRoomStageProps {
   isReconnecting: boolean;
   onSubmitNameSuggestion: (suggestedName: string) => Promise<void>;
   onSubmitAdvice?: (advice: string) => Promise<void>;
+  canReveal?: boolean;
+  onStartReveal?: () => void;
   onTriggerDemoRevealNow?: () => void;
 }
 
@@ -71,6 +73,8 @@ export function WaitingRoomStage({
   namesList,
   isReconnecting,
   onSubmitNameSuggestion,
+  canReveal = false,
+  onStartReveal,
   onTriggerDemoRevealNow,
 }: WaitingRoomStageProps) {
   const [isMuted, setIsMuted] = useState(soundManager.getMuted());
@@ -300,16 +304,25 @@ export function WaitingRoomStage({
         </div>
 
         <div className="flex w-full max-w-sm flex-col items-center justify-center gap-2.5 pt-1">
-          {onTriggerDemoRevealNow && (
-            <TactileButton
-              variant="primary"
-              onClick={onTriggerDemoRevealNow}
-              className="w-full"
-            >
-              <Sparkle size={16} weight="light" />
-              <span>Launch Balloon Pop Reveal</span>
-            </TactileButton>
-          )}
+          <TactileButton
+            variant="primary"
+            disabled={!canReveal && !onTriggerDemoRevealNow}
+            onClick={() => {
+              if (onTriggerDemoRevealNow) {
+                onTriggerDemoRevealNow();
+              } else if (canReveal && onStartReveal) {
+                onStartReveal();
+              }
+            }}
+            className="w-full"
+          >
+            <Sparkle size={16} weight="light" />
+            <span>
+              {canReveal || onTriggerDemoRevealNow
+                ? `Reveal Baby ${babySurname} Now`
+                : 'Reveal Unlocks When Timer Ends'}
+            </span>
+          </TactileButton>
 
           <TactileButton
             variant="secondary"
