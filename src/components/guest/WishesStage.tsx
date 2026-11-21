@@ -55,6 +55,7 @@ export function WishesStage({
     'writing' | 'sliding' | 'folding' | 'sealed'
   >('writing');
   const [submitting, setSubmitting] = useState(false);
+  const [loadingSavedWish, setLoadingSavedWish] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const timersRef = useRef<NodeJS.Timeout[]>([]);
 
@@ -92,6 +93,7 @@ export function WishesStage({
 
     let cancelled = false;
     if (!hasLocal && guestName) {
+      setLoadingSavedWish(true);
       fetch('/api/guest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,7 +112,10 @@ export function WishesStage({
             setShowParentNoteField(true);
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setLoadingSavedWish(false);
+        });
     }
 
     return () => {
@@ -266,14 +271,29 @@ export function WishesStage({
               >
                 Your Message for Baby {babySurname} *
               </label>
+              {loadingSavedWish && (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-primary)]/35 bg-[var(--accent-primary)]/10 px-3 py-1 text-xs font-medium text-[var(--accent-primary)]"
+                >
+                  <ArrowsClockwise size={13} weight="light" className="animate-spin" />
+                  <span>Loading your saved message, please wait...</span>
+                </p>
+              )}
               <textarea
                 id="wish-baby-textarea"
                 rows={4}
                 required
+                disabled={loadingSavedWish}
                 value={wishForBaby}
                 onChange={(e) => setWishForBaby(e.target.value)}
-                placeholder="Write your wish or blessing for the little one..."
-                className="w-full select-text resize-none rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/40 p-4 font-display-editorial text-base sm:text-lg text-[var(--text-primary)] placeholder:font-sans placeholder:text-sm placeholder:text-[var(--text-secondary)]/55 focus:border-[var(--accent-primary)] focus:bg-[var(--bg-surface)] focus:outline-none"
+                placeholder={
+                  loadingSavedWish
+                    ? 'Loading your saved message...'
+                    : 'Write your wish or blessing for the little one...'
+                }
+                className="w-full select-text resize-none rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/40 p-4 font-display-editorial text-base sm:text-lg text-[var(--text-primary)] placeholder:font-sans placeholder:text-sm placeholder:text-[var(--text-secondary)]/55 focus:border-[var(--accent-primary)] focus:bg-[var(--bg-surface)] focus:outline-none disabled:opacity-60"
               />
             </div>
 
@@ -337,8 +357,8 @@ export function WishesStage({
               <TactileButton
                 type="submit"
                 variant="primary"
-                disabled={submitting}
-                aria-busy={submitting}
+                disabled={submitting || loadingSavedWish}
+                aria-busy={submitting || loadingSavedWish}
                 className="w-full sm:w-auto"
               >
                 {submitting ? (
