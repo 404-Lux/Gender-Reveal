@@ -43,6 +43,7 @@ export interface WelcomeStageProps {
   tallyTotal: number;
   onJoinCelebration: () => void;
   onReturnToWaitingRoom?: () => void;
+  onRestoreByName?: (name: string) => Promise<boolean>;
   onLaunchPrototype?: () => void;
 }
 
@@ -54,6 +55,7 @@ export function WelcomeStage({
   tallyTotal,
   onJoinCelebration,
   onReturnToWaitingRoom,
+  onRestoreByName,
 }: WelcomeStageProps) {
   const prefersReduced = useReducedMotion();
   const [calendarMenuOpen, setCalendarMenuOpen] = useState(false);
@@ -61,6 +63,10 @@ export function WelcomeStage({
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [isMuted, setIsMuted] = useState(soundManager.getMuted());
+  const [restoreOpen, setRestoreOpen] = useState(false);
+  const [restoreName, setRestoreName] = useState('');
+  const [restoring, setRestoring] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
 
   useEffect(() => {
     setIsMuted(soundManager.getMuted());
@@ -296,6 +302,64 @@ export function WelcomeStage({
           <p className="text-xs text-[var(--text-secondary)]">
             {tallyTotal} family members &amp; friends have joined
           </p>
+
+          {!onReturnToWaitingRoom && onRestoreByName && (
+            <div className="w-full max-w-xs pt-1">
+              {!restoreOpen ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic(8);
+                    setRestoreOpen(true);
+                    setRestoreError(null);
+                  }}
+                  className="text-xs font-medium text-[var(--text-secondary)] underline underline-offset-4 transition hover:text-[var(--accent-primary)]"
+                >
+                  Already joined on another device?
+                </button>
+              ) : (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (restoring || restoreName.trim().length < 2) return;
+                    setRestoring(true);
+                    setRestoreError(null);
+                    const ok = await onRestoreByName(restoreName.trim());
+                    setRestoring(false);
+                    if (!ok) {
+                      setRestoreError(
+                        "Couldn't find that name yet — tap Join above."
+                      );
+                    }
+                  }}
+                  className="mt-1 space-y-2 rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/60 p-3 text-left"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      maxLength={40}
+                      value={restoreName}
+                      onChange={(e) => setRestoreName(e.target.value)}
+                      placeholder="Enter your name..."
+                      className="min-w-0 flex-1 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3.5 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/55 focus:border-[var(--accent-primary)] focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={restoring || restoreName.trim().length < 2}
+                      className="shrink-0 rounded-full bg-[var(--text-primary)] px-3.5 py-1.5 text-xs font-medium text-[var(--linen)] transition hover:opacity-90 disabled:opacity-45"
+                    >
+                      {restoring ? 'Finding...' : 'Find'}
+                    </button>
+                  </div>
+                  {restoreError && (
+                    <p className="text-[11px] text-[var(--accent-primary)]">
+                      {restoreError}
+                    </p>
+                  )}
+                </form>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Quiet Centered Utility Row: Add to Calendar & Share */}

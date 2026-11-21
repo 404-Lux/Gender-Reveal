@@ -333,6 +333,45 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (action === 'restoreGuestByName') {
+      const name = collapseControlChars(body.name, 40);
+      if (!name) {
+        return NextResponse.json({ ok: true, guest: null });
+      }
+
+      if (hasAppsScript) {
+        const proxyRes = await callAppsScriptProxy<{
+          ok?: boolean;
+          guest?: {
+            name: string;
+            side: FamilySide;
+            relationship: string;
+            guess: RevealGender;
+          } | null;
+        }>('POST', 'restoreGuestByName', { name });
+        return NextResponse.json({
+          ok: true,
+          guest: proxyRes?.guest || null,
+        });
+      }
+
+      const targetBase = name.split('·')[0].trim().toLowerCase();
+      const found = store.guesses.find(
+        (g) => g.name.split('·')[0].trim().toLowerCase() === targetBase
+      );
+      return NextResponse.json({
+        ok: true,
+        guest: found
+          ? {
+              name: found.name,
+              side: found.side || 'both',
+              relationship: found.relationship || '',
+              guess: found.guess,
+            }
+          : null,
+      });
+    }
+
     if (action === 'getMyWish') {
       const cleanDeviceId = sanitizeText(deviceId, 64);
       const name = collapseControlChars(body.name, 40);

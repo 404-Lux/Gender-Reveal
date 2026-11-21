@@ -623,6 +623,47 @@ export function GenderRevealExperience({
     }
   };
 
+  const handleRestoreGuestByName = async (nameInput: string): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'restoreGuestByName',
+          name: nameInput,
+        }),
+      });
+      if (!res.ok) return false;
+      const json = await res.json();
+      if (!json?.guest) return false;
+
+      const g = json.guest as {
+        name: string;
+        side: FamilySide;
+        relationship: string;
+        guess: RevealGender;
+      };
+      setGuestName(g.name);
+      setGuestSide(g.side);
+      setGuestRelationship(g.relationship);
+      setGuestGuess(g.guess);
+
+      try {
+        localStorage.setItem('pl_v2_guest_name', g.name);
+        localStorage.setItem('pl_v2_guest_side', g.side);
+        localStorage.setItem('pl_v2_guest_relationship', g.relationship);
+        localStorage.setItem('pl_v2_guest_guess', g.guess);
+      } catch {
+        // Ignore
+      }
+
+      handleStageChange('waiting');
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleGuessSubmit = async (payload: {
     name: string;
     side: FamilySide;
@@ -880,6 +921,7 @@ export function GenderRevealExperience({
               babySurname={babySurname}
               tallyTotal={serverState.tally.total}
               onJoinCelebration={() => handleStageChange('guess')}
+              onRestoreByName={handleRestoreGuestByName}
               onReturnToWaitingRoom={
                 guestName && guestGuess
                   ? () =>

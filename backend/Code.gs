@@ -484,6 +484,33 @@ function doPost(e) {
       return jsonResponse(buildParentsDataPayload(ss));
     }
 
+    if (action === "restoreGuestByName") {
+      var targetBase = cleanText(body.name, 40)
+        .split("·")[0]
+        .trim()
+        .toLowerCase();
+      if (!targetBase) return jsonResponse({ ok: true, guest: null });
+      var gSheet = ss.getSheetByName("guesses");
+      if (!gSheet) return jsonResponse({ ok: true, guest: null });
+      var gRows = gSheet.getDataRange().getValues();
+      for (var gr = gRows.length - 1; gr >= 1; gr--) {
+        var gFull = String(gRows[gr][0] || "").trim();
+        var gBase = gFull.toLowerCase().split("·")[0].trim();
+        if (gFull.toLowerCase() === targetBase || gBase === targetBase) {
+          return jsonResponse({
+            ok: true,
+            guest: {
+              name: gFull,
+              side: String(gRows[gr][1] || "both").toLowerCase(),
+              relationship: String(gRows[gr][2] || ""),
+              guess: String(gRows[gr][3] || "girl").toLowerCase() === "boy" ? "boy" : "girl",
+            },
+          });
+        }
+      }
+      return jsonResponse({ ok: true, guest: null });
+    }
+
     if (action === "getMyWish") {
       var myDevId = cleanText(body.deviceId, 64);
       var myNameBase = cleanText(body.name, 40)

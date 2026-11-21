@@ -273,7 +273,7 @@ export function WishesStage({
                 value={wishForBaby}
                 onChange={(e) => setWishForBaby(e.target.value)}
                 placeholder="Write your wish or blessing for the little one..."
-                className="w-full resize-none rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/40 p-4 font-display-editorial text-base sm:text-lg text-[var(--text-primary)] placeholder:font-sans placeholder:text-sm placeholder:text-[var(--text-secondary)]/55 focus:border-[var(--accent-primary)] focus:bg-[var(--bg-surface)] focus:outline-none"
+                className="w-full select-text resize-none rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/40 p-4 font-display-editorial text-base sm:text-lg text-[var(--text-primary)] placeholder:font-sans placeholder:text-sm placeholder:text-[var(--text-secondary)]/55 focus:border-[var(--accent-primary)] focus:bg-[var(--bg-surface)] focus:outline-none"
               />
             </div>
 
@@ -300,7 +300,7 @@ export function WishesStage({
                     value={noteForParents}
                     onChange={(e) => setNoteForParents(e.target.value)}
                     placeholder="Words of encouragement or excitement for Mommy & Daddy..."
-                    className="w-full resize-none rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/40 p-3.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/55 focus:border-[var(--accent-primary)] focus:bg-[var(--bg-surface)] focus:outline-none"
+                    className="w-full select-text resize-none rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-primary)]/40 p-3.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/55 focus:border-[var(--accent-primary)] focus:bg-[var(--bg-surface)] focus:outline-none"
                   />
                 </div>
               )}
